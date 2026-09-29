@@ -1,0 +1,3005 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#064e3b">
+  <meta name="description" content="StudyMind ESPE — Sistema Académico, Historial de Notas, Simulador y Gamificación Universitaria">
+  <title>StudyMind ESPE — Sistema Académico & Historial de Calificaciones | ESPE</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            espe: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#16a34a',
+              600: '#15803d',
+              700: '#166534',
+              800: '#14532d',
+              900: '#052e16',
+              gold: '#eab308',
+              goldDark: '#ca8a04',
+              accent: '#3b82f6',
+              danger: '#ef4444'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Canvas Confetti CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+  <!-- Three.js CDN para Fondo de Partículas 3D -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap');
+
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      overflow-x: hidden;
+    }
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+    #bg3dCanvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: -20;
+      pointer-events: none;
+    }
+
+    .glass-card {
+      background: rgba(15, 23, 42, 0.78);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    html:not(.dark) .glass-card {
+      background: rgba(255, 255, 255, 0.90);
+      border: 1px solid rgba(226, 232, 240, 0.85);
+    }
+
+    @keyframes petBreathing {
+      0%, 100% { transform: translateY(0px) scale(1); filter: drop-shadow(0 10px 15px rgba(0,0,0,0.3)); }
+      50% { transform: translateY(-7px) scale(1.02); filter: drop-shadow(0 18px 24px rgba(22, 163, 74, 0.35)); }
+    }
+    .pet-animated {
+      animation: petBreathing 3.6s ease-in-out infinite;
+      transform-origin: bottom center;
+    }
+
+    @keyframes pulseAlert {
+      0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+      50% { transform: scale(1.02); box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+    }
+    .alert-urgent-pulse {
+      animation: pulseAlert 2s infinite ease-in-out;
+    }
+
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.2); }
+    ::-webkit-scrollbar-thumb { background: rgba(22, 163, 74, 0.4); border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(22, 163, 74, 0.8); }
+    button:active { transform: scale(0.97); }
+
+    /* ESTILOS PARA LA IMPRESIÓN OFICIAL DE LA SÁBANA DE NOTAS */
+    @media print {
+      body * { visibility: hidden !important; }
+      #printableReportArea, #printableReportArea * { visibility: visible !important; }
+      #printableReportArea {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        margin: 0;
+        padding: 20px;
+        background: white !important;
+        color: #0f172a !important;
+      }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+
+<body class="min-h-screen flex flex-col bg-slate-950 text-slate-100 selection:bg-emerald-600 selection:text-white transition-colors duration-300 relative pb-28 md:pb-8">
+
+  <!-- Interactive Three.js 3D Background -->
+  <canvas id="bg3dCanvas"></canvas>
+
+  <!-- Toast Notificaciones -->
+  <div id="toastNotification" class="fixed top-4 right-4 z-50 transform transition-all duration-300 opacity-0 translate-y-[-20px] pointer-events-none">
+    <div class="glass-card text-white border border-emerald-500/40 px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 text-xs font-bold">
+      <span id="toastIcon" class="text-lg">✅</span>
+      <span id="toastMessage">Operación realizada con éxito</span>
+    </div>
+  </div>
+
+  <!-- 1. PANTALLA DE LOGIN / SEGURIDAD OBLIGATORIA -->
+  <div id="loginScreen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/95 backdrop-blur-xl">
+    <div class="glass-card max-w-md w-full p-6 sm:p-8 rounded-3xl border border-emerald-500/30 shadow-2xl space-y-6 text-center">
+      
+      <!-- Logo ESPE -->
+      <div class="flex flex-col items-center gap-2">
+        <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-emerald-600 via-emerald-500 to-amber-400 flex items-center justify-center text-3xl shadow-lg shadow-emerald-600/30 border border-white/20">
+          🏛️
+        </div>
+        <h1 class="text-2xl font-black tracking-tight text-white mt-1">StudyMind ESPE</h1>
+        <p class="text-xs text-emerald-400 font-semibold uppercase tracking-wider">Universidad de las Fuerzas Armadas ESPE</p>
+        <p class="text-[11px] text-slate-400">Sistema Académico, Historial de Notas & Productividad</p>
+      </div>
+
+      <!-- Formulario de Login -->
+      <form onsubmit="handleLoginSubmit(event)" class="space-y-4 text-left">
+        <div>
+          <label class="block text-xs font-bold text-slate-300 mb-1.5 flex items-center justify-between">
+            <span>Contraseña de Acceso</span>
+            <span class="text-[10px] text-emerald-400 font-normal">Inicial: Admin</span>
+          </label>
+          <div class="relative">
+            <input type="password" id="inputLoginPassword" required placeholder="Ingresa tu contraseña..." class="w-full px-4 py-3 rounded-2xl bg-slate-900/90 border border-slate-700 text-sm font-bold text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none pr-10">
+            <button type="button" onclick="togglePasswordVisibility('inputLoginPassword')" class="absolute right-3 top-3 text-slate-400 hover:text-white">
+              <i data-lucide="eye" class="w-4 h-4"></i>
+            </button>
+          </div>
+          <p id="loginErrorMsg" class="text-[11px] text-rose-500 font-bold mt-1.5 hidden flex items-center gap-1">
+            <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i>
+            <span>Contraseña incorrecta. Clave de rescate: "Admin"</span>
+          </p>
+        </div>
+
+        <button type="submit" class="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-sm shadow-lg shadow-emerald-900/40 transition active:scale-95 flex items-center justify-center gap-2">
+          <i data-lucide="lock-keyhole" class="w-4 h-4"></i>
+          <span>Ingresar a StudyMind</span>
+        </button>
+      </form>
+
+      <!-- Botón Olvidé mi Contraseña (WhatsApp) -->
+      <div class="pt-2 border-t border-slate-800 text-center">
+        <a href="https://wa.me/593963923399?text=Hola%20Jhordy,%20olvid%C3%A9%20mi%20contrase%C3%B1a%20en%20StudyMind%20ESPE%20y%20solicito%20la%20clave%20de%20rescate%20Admin" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 font-bold transition">
+          <i data-lucide="help-circle" class="w-3.5 h-3.5"></i>
+          <span>¿Olvidaste tu clave? Solicitar rescate (+593963923399)</span>
+        </a>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- BARRA DE NAVEGACIÓN SUPERIOR -->
+  <header class="sticky top-0 z-30 glass-card border-b border-emerald-500/20 shadow-lg">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 flex items-center justify-between gap-3">
+      
+      <!-- Logo e Institución -->
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-2xl bg-gradient-to-tr from-emerald-600 to-amber-500 flex items-center justify-center text-xl shadow-md border border-white/20 flex-shrink-0">
+          <span id="navUniEmoji">🏛️</span>
+        </div>
+        <div class="truncate">
+          <div class="flex items-center gap-1.5">
+            <h1 class="font-black text-xs sm:text-sm tracking-tight text-white uppercase truncate" id="navUniTitle">ESPE</h1>
+            <span class="text-emerald-400 font-extrabold text-[10px] bg-emerald-950/80 px-1.5 py-0.5 rounded-md border border-emerald-500/30">StudyMind</span>
+          </div>
+          <p class="text-[10px] text-slate-400 hidden xs:block truncate" id="navCareerSubtitle">Ingeniería & Ciencias • Sangolquí</p>
+        </div>
+      </div>
+
+      <!-- Resumen Superior: Promedio, Mascota (si activa) y Ajustes -->
+      <div class="flex items-center gap-2">
+        
+        <!-- Promedio General Semestre Real -->
+        <div class="flex items-center gap-1.5 bg-slate-900 border border-slate-700 px-2.5 py-1.5 rounded-2xl text-xs" title="Promedio General Real sobre 20">
+          <i data-lucide="award" class="w-3.5 h-3.5 text-amber-400"></i>
+          <div>
+            <span class="text-[8px] text-slate-400 block leading-tight">Promedio Real</span>
+            <span id="topSemesterGpa" class="font-mono font-black text-white text-xs">0.00 / 20</span>
+          </div>
+        </div>
+
+        <!-- Mascota Badge Rápido (Se oculta si está desactivada) -->
+        <button id="topPetContainerBtn" onclick="switchTab('tabPet')" class="flex items-center gap-1.5 bg-emerald-950/80 border border-emerald-500/30 px-2.5 py-1.5 rounded-2xl text-xs hover:bg-emerald-900/60 transition cursor-pointer" title="Ver Mascota Virtual">
+          <span id="topPetIcon" class="text-base">🐶</span>
+          <div class="text-left hidden sm:block">
+            <span id="topPetName" class="text-[9px] font-extrabold text-emerald-300 block leading-tight">Rex</span>
+            <span id="topPetXp" class="font-mono text-[10px] font-bold text-amber-400">0 XP</span>
+          </div>
+        </button>
+
+        <!-- Botón Rápido Boleta Semestral -->
+        <button onclick="openPrintableReportModal()" class="px-2.5 py-1.5 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-bold transition flex items-center gap-1" title="Ver Boleta Semestral / Exportar a PDF">
+          <i data-lucide="printer" class="w-3.5 h-3.5"></i>
+          <span class="hidden md:inline">Boleta PDF</span>
+        </button>
+
+        <!-- Modo Oscuro / Claro -->
+        <button onclick="toggleTheme()" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 transition" title="Cambiar Tema">
+          <i data-lucide="sun" id="themeSunIcon" class="w-4 h-4 hidden"></i>
+          <i data-lucide="moon" id="themeMoonIcon" class="w-4 h-4"></i>
+        </button>
+
+        <!-- Ajustes -->
+        <button onclick="openModal('modalSettings')" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition" title="Configuración, Mascota y Respaldos">
+          <i data-lucide="settings" class="w-4 h-4"></i>
+        </button>
+
+        <!-- Bloquear Sesión -->
+        <button onclick="lockSession()" class="p-2 rounded-xl bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-800 transition" title="Bloquear Pantalla">
+          <i data-lucide="lock" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Menú Desktop Tabs -->
+    <nav class="hidden md:block bg-slate-950/90 border-t border-slate-800 px-4">
+      <div class="max-w-7xl mx-auto flex items-center justify-between gap-1 py-1.5 text-xs">
+        <div class="flex items-center gap-1 flex-wrap">
+          <button onclick="switchTab('tabDashboard')" id="dNavTabDashboard" class="desktop-nav-btn px-3 py-1.5 rounded-xl font-bold bg-emerald-600 text-white flex items-center gap-1.5 transition">
+            <i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i>
+            <span>Dashboard</span>
+          </button>
+          <button onclick="switchTab('tabGradesHistory')" id="dNavTabGradesHistory" class="desktop-nav-btn px-3 py-1.5 rounded-xl font-bold text-slate-400 hover:text-white hover:bg-slate-800 flex items-center gap-1.5 transition">
+            <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5 text-emerald-400"></i>
+            <span>Registro & Historial de Notas</span>
+          </button>
+          <button onclick="switchTab('tabSimulator')" id="dNavTabSimulator" class="desktop-nav-btn px-3 py-1.5 rounded-xl font-bold text-slate-400 hover:text-white hover:bg-slate-800 flex items-center gap-1.5 transition">
+            <i data-lucide="target" class="w-3.5 h-3.5 text-amber-400"></i>
+            <span>Simulador de Notas</span>
+          </button>
+          <button onclick="switchTab('tabPonderaciones')" id="dNavTabPonderaciones" class="desktop-nav-btn px-3 py-1.5 rounded-xl font-bold text-slate-400 hover:text-white hover:bg-slate-800 flex items-center gap-1.5 transition">
+            <i data-lucide="lock" class="w-3.5 h-3.5 text-purple-400"></i>
+            <span>Ponderaciones ESPE</span>
+          </button>
+          <button onclick="switchTab('tabTasks')" id="dNavTabTasks" class="desktop-nav-btn px-3 py-1.5 rounded-xl font-bold text-slate-400 hover:text-white hover:bg-slate-800 flex items-center gap-1.5 transition">
+            <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
+            <span>Entregas & Agenda</span>
+          </button>
+          <button onclick="switchTab('tabNotes')" id="dNavTabNotes" class="desktop-nav-btn px-3 py-1.5 rounded-xl font-bold text-slate-400 hover:text-white hover:bg-slate-800 flex items-center gap-1.5 transition">
+            <i data-lucide="book-open" class="w-3.5 h-3.5"></i>
+            <span>Apuntes & "Va al Examen"</span>
+          </button>
+          <button id="dNavTabPet" onclick="switchTab('tabPet')" class="desktop-nav-btn px-3 py-1.5 rounded-xl font-bold text-slate-400 hover:text-white hover:bg-slate-800 flex items-center gap-1.5 transition">
+            <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-400"></i>
+            <span>Mascota 3D</span>
+          </button>
+        </div>
+
+        <div class="flex items-center gap-1.5">
+          <button onclick="openModal('modalAddGrade')" class="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 shadow transition active:scale-95">
+            <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+            <span>+ Registrar Nota</span>
+          </button>
+          <button onclick="openModal('modalAddTask')" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 shadow transition active:scale-95">
+            <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
+            <span>+ Entrega</span>
+          </button>
+        </div>
+      </div>
+    </nav>
+  </header>
+
+  <main class="flex-1 max-w-7xl w-full mx-auto p-3.5 sm:p-6 space-y-6">
+
+    <!-- ============================================================== -->
+    <!-- 1. DASHBOARD PRINCIPAL (ENTRADA AL SISTEMA)                    -->
+    <!-- ============================================================== -->
+    <section id="tabDashboard" class="main-tab-content space-y-6">
+      
+      <!-- Banner Bienvenida -->
+      <div class="glass-card rounded-3xl p-5 sm:p-7 border border-emerald-500/30 bg-gradient-to-r from-emerald-950/80 via-slate-900 to-slate-950 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl">
+        <div class="space-y-1">
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+            <span class="text-xs font-black uppercase tracking-wider text-emerald-400" id="dashGreetingHeader">Semestre Activo</span>
+          </div>
+          <h2 class="text-xl sm:text-2xl font-black text-white">
+            ¡Hola, <span id="dashStudentNameDisplay" class="text-amber-400">Estudiante</span>! 🚀
+          </h2>
+          <p class="text-xs sm:text-sm text-slate-300 max-w-xl">
+            Control integral de calificaciones reales, simulador de notas para aprobar, próximas entregas y cuaderno pedagógico.
+          </p>
+        </div>
+
+        <!-- Acciones Rápidas del Banner -->
+        <div class="flex items-center gap-2 flex-wrap">
+          <button onclick="openModal('modalAddGrade')" class="px-3.5 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black transition flex items-center gap-1.5 shadow-lg shadow-emerald-900/50">
+            <i data-lucide="award" class="w-3.5 h-3.5"></i>
+            <span>+ Nota Obtenida</span>
+          </button>
+          <button onclick="openModal('modalAddSubject')" class="px-3.5 py-2 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold transition flex items-center gap-1.5 shadow">
+            <i data-lucide="folder-plus" class="w-3.5 h-3.5 text-emerald-400"></i>
+            <span>+ Materia</span>
+          </button>
+          <button onclick="openModal('modalAddTask')" class="px-3.5 py-2 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black transition flex items-center gap-1.5 shadow">
+            <i data-lucide="calendar-plus" class="w-3.5 h-3.5"></i>
+            <span>+ Entrega</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Tarjetas KPIs Dashboard -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        
+        <!-- Promedio Real Aritmético -->
+        <div class="glass-card p-4 rounded-3xl border border-slate-800 flex items-center justify-between">
+          <div>
+            <span class="text-[10px] font-black uppercase text-emerald-400">Promedio General Real</span>
+            <div class="flex items-baseline gap-1 mt-1">
+              <span id="kpiGpaNumber" class="font-mono text-2xl font-black text-emerald-400">0.00</span>
+              <span class="text-xs text-slate-400">/ 20</span>
+            </div>
+            <span class="text-[10px] text-slate-400 block mt-0.5"><span id="kpiTotalGradesRecorded">0</span> notas registradas</span>
+          </div>
+          <div class="w-11 h-11 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-xl">
+            📊
+          </div>
+        </div>
+
+        <!-- Alerta 2 Horas y Pendientes -->
+        <div class="glass-card p-4 rounded-3xl border border-slate-800 flex items-center justify-between">
+          <div>
+            <span class="text-[10px] font-black uppercase text-slate-400">Entregas Pendientes</span>
+            <div class="flex items-baseline gap-2 mt-1">
+              <span id="kpiPendingCount" class="font-mono text-2xl font-black text-white">0</span>
+              <span id="kpiUrgentWarning" class="text-[10px] font-bold text-rose-400 hidden">⚠️ 0 urgentes</span>
+            </div>
+            <span class="text-[10px] text-slate-400 block mt-0.5">Alerta inteligente &lt; 2h</span>
+          </div>
+          <div class="w-11 h-11 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 text-xl">
+            ⏰
+          </div>
+        </div>
+
+        <!-- Apuntes Va para el Examen -->
+        <div class="glass-card p-4 rounded-3xl border border-slate-800 flex items-center justify-between">
+          <div>
+            <span class="text-[10px] font-black uppercase text-amber-400">Tips "Va al Examen"</span>
+            <div class="flex items-baseline gap-2 mt-1">
+              <span id="kpiExamTipsCount" class="font-mono text-2xl font-black text-amber-300">0</span>
+            </div>
+            <span class="text-[10px] text-slate-400 block mt-0.5">Observaciones clave del docente</span>
+          </div>
+          <div class="w-11 h-11 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 text-xl">
+            🔥
+          </div>
+        </div>
+
+        <!-- Estado de la Mascota / Modo de Estudio -->
+        <div id="kpiPetCardBox" class="glass-card p-4 rounded-3xl border border-slate-800 flex items-center justify-between cursor-pointer hover:border-emerald-500/50 transition" onclick="switchTab('tabPet')">
+          <div>
+            <span class="text-[10px] font-black uppercase text-purple-400">Mascota Virtual</span>
+            <div class="flex items-center gap-1.5 mt-1">
+              <span id="kpiPetNameLabel" class="font-extrabold text-sm text-white">Rex</span>
+              <span id="kpiPetStageBadge" class="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-purple-500/20 text-purple-300 border border-purple-500/30">Fase 1</span>
+            </div>
+            <span class="text-[10px] text-slate-400 block mt-0.5" id="kpiPetXpText">0 XP acumulados</span>
+          </div>
+          <div class="w-11 h-11 rounded-2xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-xl" id="kpiPetIconBox">
+            🐶
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Fila: Próximas Entregas y "¡Atención: Va para el Examen!" -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        <!-- Próximas Entregas Urgentes -->
+        <div class="glass-card p-5 rounded-3xl border border-slate-800 space-y-3.5">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+            <h3 class="font-black text-sm text-white flex items-center gap-2">
+              <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-400"></i>
+              <span>Próximas Entregas con Alerta Regresiva</span>
+            </h3>
+            <button onclick="switchTab('tabTasks')" class="text-xs font-bold text-emerald-400 hover:underline">Ver agenda ➔</button>
+          </div>
+          <div id="dashUrgentTasksContainer" class="space-y-2.5">
+            <!-- Inyectado dinámicamente -->
+          </div>
+        </div>
+
+        <!-- "¡ATENCIÓN: VA PARA EL EXAMEN!" (Destacado del Docente) -->
+        <div class="glass-card p-5 rounded-3xl border border-amber-500/30 bg-amber-950/20 space-y-3.5">
+          <div class="flex items-center justify-between border-b border-amber-500/20 pb-2.5">
+            <h3 class="font-black text-sm text-amber-300 flex items-center gap-2">
+              <i data-lucide="zap" class="w-4 h-4 text-amber-400"></i>
+              <span>¡ATENCIÓN: VA PARA EL EXAMEN! (Tips Docentes)</span>
+            </h3>
+            <button onclick="switchTab('tabNotes')" class="text-xs font-bold text-amber-400 hover:underline">Ver cuaderno ➔</button>
+          </div>
+          <div id="dashExamHighlightsContainer" class="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+            <!-- Inyectado dinámicamente -->
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Resumen de Materias del Semestre & Gráfico -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Lista de Asignaturas con Promedio Real Aritmético -->
+        <div class="lg:col-span-2 glass-card p-5 rounded-3xl border border-slate-800 space-y-3.5">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+            <h3 class="font-black text-sm text-white flex items-center gap-2">
+              <i data-lucide="book-marked" class="w-4 h-4 text-emerald-400"></i>
+              <span>Materias & Promedios Acumulados Reales (sobre 20)</span>
+            </h3>
+            <button onclick="openModal('modalAddSubject')" class="text-xs font-bold text-emerald-400 hover:underline">+ Nueva Materia</button>
+          </div>
+          <div id="dashSubjectsGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <!-- Inyectado dinámicamente -->
+          </div>
+        </div>
+
+        <!-- Gráfico de Rendimiento Real -->
+        <div class="glass-card p-5 rounded-3xl border border-slate-800 space-y-3.5 flex flex-col justify-between">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+            <h3 class="font-black text-sm text-white flex items-center gap-2">
+              <i data-lucide="pie-chart" class="w-4 h-4 text-accent"></i>
+              <span>Promedios Acumulados</span>
+            </h3>
+          </div>
+          <div class="h-56 relative flex items-center justify-center">
+            <canvas id="chartGpaOverview"></canvas>
+          </div>
+          <p class="text-[10px] text-slate-400 text-center">Calculado con la suma real de tus actividades registradas ÷ total de notas.</p>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- ============================================================== -->
+    <!-- 2. REGISTRO DE NOTAS & HISTORIAL DE ACTIVIDADES                -->
+    <!-- ============================================================== -->
+    <section id="tabGradesHistory" class="main-tab-content hidden space-y-6">
+      
+      <!-- Encabezado con selector de materia y acciones -->
+      <div class="glass-card p-5 rounded-3xl border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h3 class="font-black text-base text-white flex items-center gap-2">
+            <i data-lucide="file-spreadsheet" class="w-5 h-5 text-emerald-400"></i>
+            <span>Registro de Notas & Historial Académico</span>
+          </h3>
+          <p class="text-xs text-slate-400 mt-0.5">Registra deberes, exámenes, talleres y pruebas. Todo se almacena en el historial cronológico y recalcula el promedio real.</p>
+        </div>
+        
+        <div class="flex items-center gap-2 flex-wrap">
+          <button onclick="openModal('modalAddGrade')" class="px-4 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow flex items-center gap-1.5 transition">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            <span>+ Registrar Nueva Nota</span>
+          </button>
+          <button onclick="openPrintableReportModal()" class="px-4 py-2 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black shadow flex items-center gap-1.5 transition">
+            <i data-lucide="printer" class="w-4 h-4"></i>
+            <span>Boleta Semestral (PDF)</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Filtros de Historial: Por Materia y por Tipo -->
+      <div class="glass-card p-4 rounded-3xl border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+        <div class="flex items-center gap-2 flex-wrap">
+          <label class="font-bold text-slate-300">Filtrar Materia:</label>
+          <select id="filterGradeSubjectSelect" onchange="renderGradesHistoryList()" class="bg-slate-900 border border-slate-700 text-white font-bold rounded-xl px-3 py-1.5 outline-none">
+            <option value="all">Todas las Asignaturas</option>
+          </select>
+        </div>
+
+        <div class="flex items-center gap-2 flex-wrap">
+          <label class="font-bold text-slate-300">Tipo:</label>
+          <select id="filterGradeTypeSelect" onchange="renderGradesHistoryList()" class="bg-slate-900 border border-slate-700 text-white font-bold rounded-xl px-3 py-1.5 outline-none">
+            <option value="all">Todos los Tipos</option>
+            <option value="Deber">📝 Deber / Tarea</option>
+            <option value="Laboratorio">🔬 Laboratorio / Práctica</option>
+            <option value="Taller">👥 Taller Grupal</option>
+            <option value="Prueba">🧪 Prueba / Lección</option>
+            <option value="Examen">📑 Examen Parcial</option>
+            <option value="Proyecto">🚀 Proyecto / Investigación</option>
+            <option value="Participación">🙋 Participación en Clase</option>
+            <option value="Otro">📌 Otro</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Tabla / Lista de Historial de Notas Registradas -->
+      <div class="glass-card p-5 rounded-3xl border border-slate-800 space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+          <h4 class="font-black text-sm text-white flex items-center gap-2">
+            <span>📚</span>
+            <span>Historial Cronológico de Calificaciones</span>
+          </h4>
+          <span class="text-xs text-slate-400"><span id="historyGradesCount">0</span> calificaciones registradas</span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs min-w-[620px]">
+            <thead>
+              <tr class="border-b border-slate-800 text-slate-400 font-bold uppercase text-[10px]">
+                <th class="py-2.5 px-3">Fecha</th>
+                <th class="py-2.5 px-3">Materia</th>
+                <th class="py-2.5 px-3">Tipo</th>
+                <th class="py-2.5 px-3">Nombre de la Actividad</th>
+                <th class="py-2.5 px-3 text-right">Nota (/ 20)</th>
+                <th class="py-2.5 px-3 text-center">Estado</th>
+                <th class="py-2.5 px-3 text-center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="gradesHistoryTableBody" class="divide-y divide-slate-800/60">
+              <!-- Inyectado dinámicamente -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ============================================================== -->
+    <!-- 3. SIMULADOR LIBRE: "¿CUÁNTO NECESITO SACAR?"                  -->
+    <!-- ============================================================== -->
+    <section id="tabSimulator" class="main-tab-content hidden space-y-6">
+      
+      <div class="glass-card p-5 rounded-3xl border border-amber-500/30 bg-amber-950/10 space-y-2">
+        <div class="flex items-center justify-between flex-wrap gap-2">
+          <h3 class="font-black text-base text-white flex items-center gap-2">
+            <i data-lucide="target" class="w-5 h-5 text-amber-400"></i>
+            <span>Simulador Libre de Calificaciones: "¿Cuánto necesito sacar?"</span>
+          </h3>
+          <span class="text-xs font-mono font-black px-2.5 py-1 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/30">
+            Aprobación ESPE: ≥ 14.00 / 20.00
+          </span>
+        </div>
+        <p class="text-xs text-slate-300 leading-relaxed">
+          Selecciona una materia o ingresa tus notas actuales y tu meta de promedio deseado. El simulador calculará qué promedio exacto necesitas obtener en tus próximas entregas para alcanzar la meta.
+        </p>
+      </div>
+
+      <!-- Calculadora Interactiva del Simulador -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        <!-- Panel de Parámetros -->
+        <div class="glass-card p-5 sm:p-6 rounded-3xl border border-slate-800 space-y-4 text-xs">
+          <h4 class="font-black text-sm text-white border-b border-slate-800 pb-2">1. Configurar Parámetros del Simulador</h4>
+
+          <div>
+            <label class="block font-bold text-slate-300 mb-1">Cargar Datos de Materia Existente (Opcional):</label>
+            <select id="simSubjectSelect" onchange="loadSubjectIntoSimulator()" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-bold outline-none">
+              <option value="custom">-- Ingreso Manual Libre --</option>
+            </select>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block font-bold text-slate-300 mb-1">Promedio Actual (/ 20)</label>
+              <input type="number" step="0.01" min="0" max="20" id="simCurrentAvg" value="12.50" oninput="runGradeSimulator()" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono font-bold outline-none">
+            </div>
+            <div>
+              <label class="block font-bold text-slate-300 mb-1">Notas Ya Registradas</label>
+              <input type="number" min="1" max="50" id="simGradesDoneCount" value="3" oninput="runGradeSimulator()" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono font-bold outline-none">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block font-bold text-slate-300 mb-1">Meta Deseada de Promedio</label>
+              <select id="simTargetGoal" onchange="runGradeSimulator()" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-bold outline-none">
+                <option value="14.00" selected>14.00 (Mínimo para Aprobar)</option>
+                <option value="16.00">16.00 (Buen Promedio)</option>
+                <option value="18.00">18.00 (Distinción Académica)</option>
+                <option value="20.00">20.00 (Excelencia Total)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block font-bold text-slate-300 mb-1">Próximas Entregas a Simular</label>
+              <input type="number" min="1" max="20" id="simUpcomingCount" value="2" oninput="runGradeSimulator()" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono font-bold outline-none">
+            </div>
+          </div>
+        </div>
+
+        <!-- Panel de Resultado Diagnóstico -->
+        <div class="glass-card p-5 sm:p-6 rounded-3xl border border-slate-800 flex flex-col justify-between space-y-4">
+          <div>
+            <h4 class="font-black text-sm text-white border-b border-slate-800 pb-2">2. Diagnóstico & Nota Necesaria</h4>
+            
+            <div class="mt-4 p-5 rounded-2xl bg-slate-900/90 border border-slate-800 text-center space-y-2">
+              <span class="text-xs font-bold text-slate-400 uppercase tracking-wider block">Promedio que necesitas sacar en cada una:</span>
+              <span id="simRequiredScoreDisplay" class="font-mono text-4xl sm:text-5xl font-black text-amber-400 block">16.25</span>
+              <span id="simRequiredBadge" class="inline-block text-xs font-black px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                Alcanzable con dedicación 🎯
+              </span>
+            </div>
+          </div>
+
+          <div id="simAdviceBox" class="p-3.5 rounded-2xl bg-emerald-950/40 border border-emerald-500/30 text-xs text-emerald-200 leading-relaxed">
+            💡 <b>Recomendación de estudio:</b> Con un promedio actual de 12.50 en 3 actividades, necesitas obtener un promedio mínimo de 16.25 en tus próximas 2 entregas para aprobar la asignatura con 14.00.
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- ============================================================== -->
+    <!-- 4. PONDERACIONES ESPE (BLOQUEADO / EN REVISIÓN DE SÍLABOS)     -->
+    <!-- ============================================================== -->
+    <section id="tabPonderaciones" class="main-tab-content hidden space-y-6">
+      
+      <div class="glass-card p-8 sm:p-12 rounded-3xl border border-purple-500/40 bg-gradient-to-br from-slate-950 via-purple-950/30 to-slate-950 text-center max-w-2xl mx-auto space-y-5 shadow-2xl">
+        <div class="w-20 h-20 mx-auto rounded-3xl bg-purple-500/10 border-2 border-purple-500/30 flex items-center justify-center text-4xl shadow-lg">
+          🔒
+        </div>
+
+        <div class="space-y-2">
+          <span class="text-xs font-mono font-black px-3 py-1 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 uppercase tracking-wider">
+            Versión en Configuración
+          </span>
+          <h3 class="text-xl sm:text-2xl font-black text-white">Módulo de Ponderaciones ESPE</h3>
+          <p class="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-lg mx-auto">
+            Este módulo se encuentra <b>temporalmente bloqueado</b> para tu carrera y NRCs mientras se valida la rúbrica oficial de los sílabos con los docentes de la cátedra.
+          </p>
+        </div>
+
+        <div class="p-4 bg-slate-900/90 rounded-2xl border border-slate-800 text-xs text-slate-300 text-left space-y-2 max-w-md mx-auto">
+          <div class="flex items-center gap-2 text-amber-400 font-bold">
+            <i data-lucide="info" class="w-4 h-4"></i>
+            <span>¿Por qué está temporalmente bloqueado?</span>
+          </div>
+          <p class="text-[11px] text-slate-400 leading-tight">
+            En la ESPE, cada departamento académico (Ciencias Exactas, Computación, Eléctrica, etc.) puede variar las ponderaciones de laboratorio, lecciones o examen según la modalidad. Para habilitar la ponderación exacta de tu carrera, comunícate con el administrador.
+          </p>
+        </div>
+
+        <div class="pt-2">
+          <a href="https://wa.me/593963923399?text=Hola%20Jhordy,%20deseo%20solicitar%20la%20habilitaci%C3%B3n%20o%20configuraci%C3%B3n%20personalizada%20del%20m%C3%B3dulo%20de%20ponderaciones%20para%20mi%20carrera%20en%20StudyMind%20ESPE." target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs shadow-xl transition active:scale-95">
+            <i data-lucide="message-circle" class="w-4 h-4"></i>
+            <span>Contactar al Administrador (+593963923399)</span>
+          </a>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ============================================================== -->
+    <!-- 5. ENTREGAS, HORARIOS & AGENDA CALENDARIO                      -->
+    <!-- ============================================================== -->
+    <section id="tabTasks" class="main-tab-content hidden space-y-6">
+      
+      <div class="glass-card p-5 rounded-3xl border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h3 class="font-black text-base text-white flex items-center gap-2">
+            <i data-lucide="alarm-clock" class="w-5 h-5 text-rose-400"></i>
+            <span>Control de Entregas, Talleres y Exámenes</span>
+          </h3>
+          <p class="text-xs text-slate-400 mt-0.5">Alerta inteligente regresiva cuando resten menos de 2 horas. Prevención de borrado accidental activada.</p>
+        </div>
+        
+        <div class="flex items-center gap-2">
+          <button onclick="openModal('modalAddTask')" class="px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow flex items-center gap-1.5 transition">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            <span>+ Registrar Entrega</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Filtro por Estado: Pendientes vs Completadas -->
+      <div class="flex items-center gap-2 border-b border-slate-800 pb-2">
+        <button onclick="filterTasksList('pending')" id="btnFilterTaskPending" class="px-3.5 py-1.5 rounded-xl font-bold text-xs bg-emerald-600 text-white">Pendientes</button>
+        <button onclick="filterTasksList('completed')" id="btnFilterTaskCompleted" class="px-3.5 py-1.5 rounded-xl font-bold text-xs bg-slate-800 text-slate-400 hover:text-white">Completadas (+XP)</button>
+      </div>
+
+      <!-- Cuadrícula de Tareas con Temporizador Regresivo -->
+      <div id="tasksListFullContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Inyectado dinámicamente -->
+      </div>
+
+      <!-- Mini-Agenda Calendario Visual de Entregas del Mes -->
+      <div class="glass-card p-5 rounded-3xl border border-slate-800 space-y-3">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+          <h4 class="font-black text-sm text-white flex items-center gap-2">
+            <i data-lucide="calendar" class="w-4 h-4 text-emerald-400"></i>
+            <span>Agenda Mensual de Entregas & Evaluaciones</span>
+          </h4>
+          <span class="text-xs font-bold text-emerald-400" id="currentMonthYearLabel">Mes Actual</span>
+        </div>
+        <div id="monthlyCalendarGrid" class="grid grid-cols-7 gap-1.5 text-center text-xs">
+          <!-- Inyectado dinámicamente -->
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ============================================================== -->
+    <!-- 6. APUNTES, "LO QUE APRENDÍ HOY" Y "VA PARA EL EXAMEN"         -->
+    <!-- ============================================================== -->
+    <section id="tabNotes" class="main-tab-content hidden space-y-6">
+      
+      <div class="glass-card p-5 rounded-3xl border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h3 class="font-black text-base text-white flex items-center gap-2">
+            <i data-lucide="book-open" class="w-5 h-5 text-amber-400"></i>
+            <span>Cuaderno Académico por Asignatura</span>
+          </h3>
+          <p class="text-xs text-slate-400 mt-0.5">Refuerza con el micro-diario pedagógico diario y resalta los tips docentes que entrarán al examen.</p>
+        </div>
+        
+        <div class="flex items-center gap-2 flex-wrap">
+          <select id="selectNotesFilterSubject" onchange="renderNotesLists()" class="bg-slate-900 border border-slate-700 text-white text-xs font-bold rounded-xl px-3 py-2 outline-none">
+            <option value="all">Todas las Materias</option>
+          </select>
+          <button onclick="openModal('modalAddNote')" class="px-4 py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black shadow flex items-center gap-1.5 transition">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            <span>+ Escribir Nota / Tip</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Columnas Gemelas: "Lo Que Aprendí Hoy" vs "¡Atención: Va para el Examen!" -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        <!-- SECCIÓN 1: "Lo que aprendí hoy" -->
+        <div class="glass-card p-5 rounded-3xl border border-slate-800 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+            <h4 class="font-black text-sm text-emerald-400 flex items-center gap-2">
+              <span>✍️</span>
+              <span>"Lo que aprendí hoy" (Micro-Diario)</span>
+            </h4>
+            <span class="text-[10px] text-slate-400 font-semibold">Refuerzo diario</span>
+          </div>
+          <div id="notesLearnedTodayContainer" class="space-y-3">
+            <!-- Inyectado dinámicamente -->
+          </div>
+        </div>
+
+        <!-- SECCIÓN 2: "¡ATENCIÓN: VA PARA EL EXAMEN!" -->
+        <div class="glass-card p-5 rounded-3xl border border-amber-500/40 bg-amber-950/10 space-y-4">
+          <div class="flex items-center justify-between border-b border-amber-500/30 pb-2.5">
+            <h4 class="font-black text-sm text-amber-300 flex items-center gap-2">
+              <span>🔥</span>
+              <span>¡ATENCIÓN: VA PARA EL EXAMEN!</span>
+            </h4>
+            <span class="text-[10px] text-amber-400 font-black px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40">Tips Críticos</span>
+          </div>
+          <div id="notesExamAlertsContainer" class="space-y-3">
+            <!-- Inyectado dinámicamente -->
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- ============================================================== -->
+    <!-- 7. MASCOTA VIRTUAL (OPCIONAL CON INTERRUPTOR DE ACTIVACIÓN)    -->
+    <!-- ============================================================== -->
+    <section id="tabPet" class="main-tab-content hidden space-y-6">
+      
+      <!-- Contenedor cuando la mascota está DESACTIVADA -->
+      <div id="petDisabledStateBanner" class="hidden glass-card p-8 rounded-3xl border border-slate-800 text-center space-y-4 max-w-lg mx-auto">
+        <div class="w-16 h-16 rounded-2xl bg-slate-900 border border-slate-700 flex items-center justify-center text-3xl mx-auto">
+          💤
+        </div>
+        <h3 class="text-lg font-black text-white">Mascota Virtual Desactivada</h3>
+        <p class="text-xs text-slate-400 leading-relaxed">
+          Actualmente el módulo de gamificación se encuentra desactivado para que te enfoques exclusivamente en tus notas y entregas. Si deseas reactivar a tu compañero de estudio, haz clic abajo.
+        </p>
+        <button onclick="togglePetActivation(true)" class="px-5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow-lg transition active:scale-95">
+          ✨ Activar Mascota Virtual
+        </button>
+      </div>
+
+      <!-- Contenedor cuando la mascota está ACTIVADA -->
+      <div id="petActiveStateContainer" class="glass-card p-6 sm:p-8 rounded-3xl border border-emerald-500/40 bg-gradient-to-br from-slate-900 via-emerald-950/70 to-slate-950 shadow-2xl relative overflow-hidden">
+        
+        <!-- Interruptor en esquina para desactivar si no se desea -->
+        <div class="flex justify-end mb-2">
+          <button onclick="togglePetActivation(false)" class="text-[10px] text-slate-400 hover:text-rose-400 font-bold bg-slate-900/80 px-2.5 py-1 rounded-xl border border-slate-700 transition">
+            Desactivar Mascota ✕
+          </button>
+        </div>
+
+        <div class="flex flex-col md:flex-row items-center gap-8">
+          
+          <!-- Escenario Pedestal 3D de la Mascota -->
+          <div class="flex-shrink-0 flex flex-col items-center">
+            <div class="w-60 h-60 sm:w-72 sm:h-72 rounded-3xl bg-slate-950/90 border-2 border-emerald-500/40 p-4 flex flex-col items-center justify-end relative shadow-2xl overflow-hidden">
+              <div class="absolute inset-0 bg-gradient-to-t from-emerald-500/20 via-transparent to-transparent pointer-events-none"></div>
+              <div class="absolute bottom-4 w-48 h-8 bg-emerald-500/25 rounded-full blur-md"></div>
+              <div class="absolute bottom-5 w-40 h-4 bg-slate-900 rounded-full border border-emerald-400/40"></div>
+
+              <!-- Accesorio Flotante según la Fase -->
+              <div id="petAccessoryBadge" class="absolute top-3 right-3 text-3xl z-20 p-2 rounded-2xl bg-slate-900/80 border border-emerald-500/40 shadow-lg">
+                🍼
+              </div>
+
+              <!-- Render Anatómico de Cuerpo Completo SVG -->
+              <div id="petSvgContainer" class="w-52 h-52 pet-animated z-10 flex items-center justify-center transition-all duration-500 mb-2">
+                <!-- Inyectado SVG -->
+              </div>
+            </div>
+
+            <span id="petPhaseNameBadge" class="mt-3.5 px-4 py-1.5 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-black uppercase tracking-wider border border-emerald-500/40 shadow-sm">
+              Fase 1: Cachorro Novato 🐣
+            </span>
+          </div>
+
+          <!-- Información de Nivel, Vitales y Acciones -->
+          <div class="flex-1 w-full space-y-4">
+            <div class="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <h3 class="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
+                  <span id="petDisplayName">Rex</span>
+                  <button onclick="openModal('modalChangePet')" class="text-xs text-emerald-400 hover:text-emerald-300 font-bold bg-slate-900 px-3 py-1 rounded-xl border border-slate-700 transition">
+                    (Cambiar Mascota 🐾)
+                  </button>
+                </h3>
+                <p id="petSpeciesSubtitle" class="text-xs sm:text-sm text-emerald-300 font-bold mt-0.5">Perro Fiel — Leal y Guardián</p>
+              </div>
+              <div class="text-right">
+                <span id="petTotalXpDisplay" class="text-3xl font-black text-amber-400">0 XP</span>
+                <span class="block text-[10px] text-slate-400 font-bold uppercase">Puntos de Experiencia</span>
+              </div>
+            </div>
+
+            <!-- Barra de Progreso a Siguiente Evolución -->
+            <div class="bg-slate-950/70 p-3.5 rounded-2xl border border-emerald-500/20 space-y-1.5">
+              <div class="flex justify-between text-xs font-extrabold text-slate-300">
+                <span>Progreso hacia la Siguiente Fase Evolutiva</span>
+                <span id="petXpRatioText">0 / 100 XP</span>
+              </div>
+              <div class="w-full bg-slate-800 rounded-full h-3.5 p-0.5 overflow-hidden border border-slate-700">
+                <div id="petXpBarFill" class="bg-gradient-to-r from-amber-400 via-emerald-400 to-teal-300 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+              </div>
+            </div>
+
+            <!-- Vitales: Nutrición y Felicidad -->
+            <div class="grid grid-cols-2 gap-3 pt-1">
+              <div class="bg-slate-900/90 p-3 rounded-2xl border border-slate-800 flex flex-col justify-between space-y-2">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-bold text-slate-200">🍎 Nutrición</span>
+                  <button onclick="feedPet()" class="text-[10px] text-emerald-400 font-bold hover:underline bg-slate-950 px-2 py-0.5 rounded-lg border border-emerald-500/30">+ Snack (+5 XP)</button>
+                </div>
+                <div class="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden">
+                  <div id="petHungerFill" class="bg-emerald-400 h-full rounded-full transition-all duration-300" style="width: 85%"></div>
+                </div>
+              </div>
+
+              <div class="bg-slate-900/90 p-3 rounded-2xl border border-slate-800 flex flex-col justify-between space-y-2">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-bold text-slate-200">💖 Felicidad</span>
+                  <button onclick="petMascot()" class="text-[10px] text-pink-400 font-bold hover:underline bg-slate-950 px-2 py-0.5 rounded-lg border border-pink-500/30">✨ Acariciar (+5 XP)</button>
+                </div>
+                <div class="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden">
+                  <div id="petHappinessFill" class="bg-amber-400 h-full rounded-full transition-all duration-300" style="width: 90%"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Guía de Obtención de XP -->
+            <div class="p-3 bg-emerald-950/40 rounded-2xl border border-emerald-500/30 text-xs text-emerald-200 leading-relaxed">
+              💡 <b>¿Cómo evoluciona tu mascota?</b>
+              Ganas <b>+25 XP</b> al completar una entrega, <b>+15 XP</b> por registrar notas o apuntes, <b>+30 XP</b> por sacar 14 o más de calificación, y <b>+50 XP</b> con lluvia de confeti por un 20/20 perfecto 🎉.
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- BARRA DE NAVEGACIÓN MÓVIL INFERIOR -->
+  <nav class="md:hidden fixed bottom-0 left-0 right-0 z-40 glass-card border-t border-slate-800 px-1 py-2 shadow-2xl flex items-center justify-around text-[10px] font-bold">
+    <button onclick="switchTab('tabDashboard')" id="mNavTabDashboard" class="mobile-nav-btn flex-1 flex flex-col items-center gap-0.5 text-emerald-400">
+      <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+      <span>Dashboard</span>
+    </button>
+    <button onclick="switchTab('tabGradesHistory')" id="mNavTabGradesHistory" class="mobile-nav-btn flex-1 flex flex-col items-center gap-0.5 text-slate-400">
+      <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+      <span>Notas</span>
+    </button>
+    <button onclick="switchTab('tabSimulator')" id="mNavTabSimulator" class="mobile-nav-btn flex-1 flex flex-col items-center gap-0.5 text-slate-400">
+      <i data-lucide="target" class="w-4 h-4 text-amber-400"></i>
+      <span>Simulador</span>
+    </button>
+    <button onclick="switchTab('tabPonderaciones')" id="mNavTabPonderaciones" class="mobile-nav-btn flex-1 flex flex-col items-center gap-0.5 text-slate-400">
+      <i data-lucide="lock" class="w-4 h-4 text-purple-400"></i>
+      <span>Ponderación</span>
+    </button>
+    <button onclick="switchTab('tabTasks')" id="mNavTabTasks" class="mobile-nav-btn flex-1 flex flex-col items-center gap-0.5 text-slate-400">
+      <i data-lucide="calendar" class="w-4 h-4"></i>
+      <span>Agenda</span>
+    </button>
+    <button onclick="switchTab('tabNotes')" id="mNavTabNotes" class="mobile-nav-btn flex-1 flex flex-col items-center gap-0.5 text-slate-400">
+      <i data-lucide="book-open" class="w-4 h-4"></i>
+      <span>Apuntes</span>
+    </button>
+    <button id="mNavTabPet" onclick="switchTab('tabPet')" class="mobile-nav-btn flex-1 flex flex-col items-center gap-0.5 text-slate-400">
+      <i data-lucide="sparkles" class="w-4 h-4 text-amber-400"></i>
+      <span>Mascota</span>
+    </button>
+  </nav>
+
+  <!-- PIE DE PÁGINA OFICIAL CON CRÉDITO Y ENLACE TIKTOK -->
+  <footer class="mt-auto bg-slate-950 text-slate-400 border-t border-slate-800 py-6 px-4 no-print">
+    <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
+      <div>
+        <p class="text-xs text-slate-300 font-semibold flex items-center justify-center sm:justify-start gap-2">
+          <span>Diseñado por <span class="text-amber-400 font-black">Mr_Jhordy</span></span>
+          <span class="text-slate-600">•</span>
+          <span>Universidad de las Fuerzas Armadas ESPE 🇪🇨</span>
+        </p>
+        <p class="text-[11px] text-slate-500 mt-1">
+          StudyMind ESPE — Datos guardados localmente y seguros en tu navegador.
+        </p>
+      </div>
+
+      <div class="flex items-center gap-3 text-xs font-bold justify-center flex-wrap">
+        <!-- TikTok Oficial con Logo SVG y Enlace Solicitado -->
+        <a href="https://www.tiktok.com/@mr_jhordy21?_r=1&_t=ZS-9A7sbuB1FKM" target="_blank" rel="noopener noreferrer" class="px-3.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700 hover:border-pink-500 text-white flex items-center gap-1.5 shadow transition hover:text-pink-400" title="TikTok Oficial @mr_jhordy21">
+          <svg class="w-4 h-4 fill-current shrink-0" viewBox="0 0 24 24">
+            <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.298-.002.595.042.88.13V9.4a6.33 6.33 0 0 0-1-.08A6.34 6.34 0 0 0 3 15.66a6.34 6.34 0 0 0 10.81 4.48 6.3 6.3 0 0 0 1.86-4.48V8.72a8.18 8.18 0 0 0 4.92 1.63V6.9a4.85 4.85 0 0 1-1-.21z"/>
+          </svg>
+          <span>TikTok: @mr_jhordy21</span>
+        </a>
+
+        <!-- WhatsApp Oficial -->
+        <a href="https://wa.me/593963923399?text=Hola%20Jhordy,%20tengo%20una%20consulta%20sobre%20StudyMind%20ESPE" target="_blank" rel="noopener noreferrer" class="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5 shadow transition">
+          <i data-lucide="message-circle" class="w-3.5 h-3.5"></i>
+          <span>Soporte: +593963923399</span>
+        </a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ============================================================== -->
+  <!-- MODAL: SÁBANA DE NOTAS SEMESTRAL OFICIAL (DISEÑO BONITO Y PDF) -->
+  <!-- ============================================================== -->
+  <div id="modalPrintableReport" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-4 hidden">
+    <div class="glass-card max-w-4xl w-full p-4 sm:p-6 rounded-3xl border border-slate-700 max-h-[92vh] overflow-y-auto space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3 no-print">
+        <div>
+          <h3 class="font-black text-sm text-white flex items-center gap-2">
+            <span>📄</span>
+            <span>Vista Previa de Boleta Semestral / Sábana de Notas</span>
+          </h3>
+          <p class="text-[11px] text-slate-400">Reporte estilizado con membrete oficial ESPE y desglose por materia.</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="window.print()" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow flex items-center gap-1.5 transition active:scale-95">
+            <i data-lucide="printer" class="w-4 h-4"></i>
+            <span>Imprimir / Guardar PDF</span>
+          </button>
+          <button onclick="closeModal('modalPrintableReport')" class="text-slate-400 hover:text-white p-1">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- DOCUMENTO IMPRIMIBLE ESTILIZADO -->
+      <div id="printableReportArea" class="bg-white text-slate-900 p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm space-y-5">
+        
+        <!-- Membrete ESPE -->
+        <div class="flex items-center justify-between border-b-2 border-emerald-800 pb-4">
+          <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-xl bg-emerald-800 text-white flex items-center justify-center text-2xl font-black">
+              🏛️
+            </div>
+            <div>
+              <h2 class="font-black text-base text-emerald-900 tracking-tight uppercase" id="printReportUniName">Universidad de las Fuerzas Armadas ESPE</h2>
+              <p class="text-xs font-bold text-slate-600 uppercase" id="printReportCareerName">Ingeniería & Ciencias • Matriz Sangolquí</p>
+              <p class="text-[11px] text-slate-500">Boleta y Reporte Semestral de Calificaciones del Estudiante</p>
+            </div>
+          </div>
+          <div class="text-right">
+            <span class="text-xs font-mono font-bold text-emerald-800 px-2.5 py-1 rounded bg-emerald-50 border border-emerald-200 block">Período: 2026-S1</span>
+            <span class="text-[10px] text-slate-400 block mt-1" id="printReportDate">Fecha de Emisión: 28/09/2026</span>
+          </div>
+        </div>
+
+        <!-- Ficha de Datos del Estudiante -->
+        <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+          <div>
+            <span class="text-slate-500 font-bold block text-[10px] uppercase">Estudiante:</span>
+            <span id="printReportStudentName" class="font-black text-slate-900 text-sm">Estudiante ESPE</span>
+          </div>
+          <div>
+            <span class="text-slate-500 font-bold block text-[10px] uppercase">Estado Académico:</span>
+            <span id="printReportStudentStatus" class="font-bold text-emerald-700">Regular / En Curso</span>
+          </div>
+          <div>
+            <span class="text-slate-500 font-bold block text-[10px] uppercase">Promedio General Semestral:</span>
+            <span id="printReportGeneralGpa" class="font-mono font-black text-emerald-800 text-sm">0.00 / 20.00</span>
+          </div>
+        </div>
+
+        <!-- Tabla Estilizada de Materias y Calificaciones Registradas -->
+        <div class="space-y-3">
+          <h4 class="font-black text-xs uppercase tracking-wider text-slate-800">Desglose por Asignatura</h4>
+          <table class="w-full text-left text-xs border border-slate-300">
+            <thead class="bg-emerald-900 text-white font-bold text-[10px] uppercase">
+              <tr>
+                <th class="py-2 px-3">NRC</th>
+                <th class="py-2 px-3">Materia</th>
+                <th class="py-2 px-3">Docente</th>
+                <th class="py-2 px-3 text-center">Actividades</th>
+                <th class="py-2 px-3 text-right">Promedio Real (/ 20)</th>
+                <th class="py-2 px-3 text-center">Estado</th>
+              </tr>
+            </thead>
+            <tbody id="printReportTableBody" class="divide-y divide-slate-200">
+              <!-- Inyectado dinámicamente -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Firmas y Créditos Obligatorios -->
+        <div class="pt-8 border-t border-slate-200 grid grid-cols-2 gap-8 text-center text-xs">
+          <div class="space-y-1">
+            <div class="w-40 border-b border-slate-400 mx-auto"></div>
+            <span class="font-bold text-slate-700 block">Firma del Estudiante</span>
+            <span class="text-[10px] text-slate-400" id="printReportStudentSignature">Estudiante</span>
+          </div>
+          <div class="space-y-1">
+            <div class="w-40 border-b border-slate-400 mx-auto"></div>
+            <span class="font-bold text-slate-700 block">Secretaría Académica ESPE</span>
+            <span class="text-[10px] text-slate-400">Validación de Registro</span>
+          </div>
+        </div>
+
+        <!-- Pie de firma y Crédito obligatorio solicitado -->
+        <div class="pt-4 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+          <span>StudyMind ESPE — Sistema de Gestión Universitaria</span>
+          <span class="font-bold text-slate-700">Diseñado por <span class="text-emerald-800 font-black">Mr_Jhordy</span> (TikTok: @mr_jhordy21)</span>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================== -->
+  <!-- MODAL: REGISTRAR NUEVA CALIFICACIÓN / NOTA                    -->
+  <!-- ============================================================== -->
+  <div id="modalAddGrade" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 hidden">
+    <div class="glass-card max-w-md w-full p-6 rounded-3xl border border-slate-800 space-y-4 text-xs">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="font-extrabold text-sm text-white flex items-center gap-2">
+          <i data-lucide="award" class="w-4 h-4 text-emerald-400"></i>
+          <span id="gradeModalTitle">Registrar Nota Obtenida</span>
+        </h3>
+        <button onclick="closeModal('modalAddGrade')" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+
+      <form onsubmit="saveGradeSubmit(event)" class="space-y-3.5">
+        <input type="hidden" id="gradeEditId" value="">
+        
+        <div>
+          <label class="block font-bold text-slate-300 mb-1">Materia *</label>
+          <select id="gradeSubjectSelect" required class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-bold outline-none"></select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-300 mb-1">Tipo de Actividad *</label>
+            <select id="gradeTypeSelect" required class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-bold outline-none">
+              <option value="Deber">📝 Deber / Tarea</option>
+              <option value="Laboratorio">🔬 Laboratorio / Práctica</option>
+              <option value="Taller">👥 Taller Grupal</option>
+              <option value="Prueba">🧪 Prueba / Lección</option>
+              <option value="Examen">📑 Examen Parcial</option>
+              <option value="Proyecto">🚀 Proyecto / Investigación</option>
+              <option value="Participación">🙋 Participación</option>
+              <option value="Otro">📌 Otro</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-300 mb-1">Fecha</label>
+            <input type="date" id="gradeDateInput" required class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-bold outline-none">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-300 mb-1">Nombre o Tema de la Actividad *</label>
+          <input type="text" id="gradeNameInput" required placeholder="Ej. Taller 2 de Integrales, Laboratorio de Grafos..." class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-bold outline-none">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-300 mb-1">Nota Obtenida (/ 20) *</label>
+            <input type="number" step="0.01" min="0" max="20" id="gradeScoreInput" required placeholder="Ej. 16.50" oninput="updateGradeInputHelper()" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-emerald-500/40 text-emerald-400 font-mono font-bold text-sm outline-none">
+          </div>
+          <div class="flex flex-col justify-end">
+            <span id="gradeConversionHelper" class="text-[11px] font-bold text-slate-400 p-2 bg-slate-900 rounded-xl border border-slate-800 text-center">
+              Equivalente: 0.0 / 10
+            </span>
+          </div>
+        </div>
+
+        <div class="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[11px] leading-tight">
+          🎉 <b>Recompensa:</b> Al registrar tu nota ganas <b>+15 XP</b>. Si sacas 14 o más ganas <b>+30 XP</b>, y si sacas 20/20 perfecto ganas <b>+50 XP</b> y lluvia de confeti.
+        </div>
+
+        <div class="pt-2 flex justify-end gap-2">
+          <button type="button" onclick="closeModal('modalAddGrade')" class="px-4 py-2 font-bold text-slate-400">Cancelar</button>
+          <button type="submit" class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black shadow">Guardar Calificación</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: CREAR / EDITAR ENTREGA CON ALERTA DE 2 HORAS -->
+  <div id="modalAddTask" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 hidden">
+    <div class="glass-card max-w-md w-full p-6 rounded-3xl border border-slate-800 space-y-4 text-xs">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="font-extrabold text-sm text-white flex items-center gap-2">
+          <i data-lucide="calendar" class="w-4 h-4 text-emerald-400"></i>
+          <span id="taskModalTitle">Registrar Actividad / Entrega</span>
+        </h3>
+        <button onclick="closeModal('modalAddTask')" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+
+      <form onsubmit="saveTaskSubmit(event)" class="space-y-3.5">
+        <input type="hidden" id="taskEditId" value="">
+        
+        <div>
+          <label class="block font-bold text-slate-300 mb-1">Nombre de la Actividad *</label>
+          <input type="text" id="taskNameInput" required placeholder="Ej. Deber 4 de Ecuaciones, Proyecto Final..." class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-bold outline-none">
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-300 mb-1">Materia Asociada *</label>
+          <select id="taskSubjectSelect" required class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-bold outline-none"></select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-300 mb-1">Fecha Límite</label>
+            <input type="date" id="taskDateInput" required class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-bold outline-none">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-300 mb-1">Hora Límite</label>
+            <input type="time" id="taskTimeInput" required class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-bold outline-none">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-300 mb-1">Tipo de Actividad</label>
+          <select id="taskCategorySelect" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-bold outline-none">
+            <option value="deber">Deber / Tarea</option>
+            <option value="laboratorio">Laboratorio / Práctica</option>
+            <option value="prueba">Prueba / Lección</option>
+            <option value="examen">Examen Parcial</option>
+            <option value="proyecto">Proyecto</option>
+          </select>
+        </div>
+
+        <div class="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] leading-tight">
+          ⚡ <b>Alerta Inteligente:</b> Te avisaremos cuando resten menos de 2 horas para la entrega. Si la completas ganas <b>+25 XP</b>.
+        </div>
+
+        <div class="pt-2 flex justify-end gap-2">
+          <button type="button" onclick="closeModal('modalAddTask')" class="px-4 py-2 font-bold text-slate-400">Cancelar</button>
+          <button type="submit" class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black shadow">Guardar Entrega</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL DE SEGURIDAD CONTRA ELIMINACIÓN ACCIDENTAL -->
+  <div id="modalConfirmDeleteTask" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="glass-card max-w-sm w-full p-6 rounded-3xl border border-rose-500/40 text-center space-y-4 text-xs">
+      <div class="w-14 h-14 mx-auto rounded-2xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400 text-2xl animate-bounce">
+        ⚠️
+      </div>
+
+      <div class="space-y-1">
+        <h4 class="font-black text-sm text-white">¿Seguro que deseas eliminar esta actividad sin completar?</h4>
+        <p class="text-slate-300 text-[11px] leading-relaxed">
+          Esta entrega aún <b>no ha sido marcada como realizada</b>. Si la borras, perderás el recordatorio y los puntos XP.
+        </p>
+      </div>
+
+      <div class="p-2.5 bg-slate-900 rounded-xl border border-slate-800 text-[11px] text-amber-300 font-bold" id="deleteTaskTitleDisplay">
+        Actividad
+      </div>
+
+      <div class="pt-2 flex flex-col gap-2">
+        <button onclick="confirmTaskAsCompletedFromModal()" class="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black shadow transition">
+          ✅ ¡Ya la realicé! (Marcar Hecha +25 XP)
+        </button>
+        <div class="flex gap-2">
+          <button onclick="closeModal('modalConfirmDeleteTask')" class="flex-1 py-2 font-bold text-slate-400 bg-slate-800 rounded-xl">Cancelar</button>
+          <button onclick="forceDeletePendingTask()" class="flex-1 py-2 font-bold text-rose-400 hover:bg-rose-950/60 rounded-xl border border-rose-500/30">Sí, eliminar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: AGREGAR MATERIA -->
+  <div id="modalAddSubject" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 hidden">
+    <div class="glass-card max-w-md w-full p-6 rounded-3xl border border-slate-800 space-y-4 text-xs">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="font-extrabold text-sm text-white flex items-center gap-2">
+          <i data-lucide="book" class="w-4 h-4 text-emerald-400"></i>
+          <span>Registrar Asignatura del Semestre</span>
+        </h3>
+        <button onclick="closeModal('modalAddSubject')" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+
+      <form onsubmit="saveSubjectSubmit(event)" class="space-y-3.5">
+        <div>
+          <label class="block font-bold text-slate-300 mb-1">Nombre de la Materia *</label>
+          <input type="text" id="subjectNameInput" required placeholder="Ej. Cálculo Vectorial, Estructuras de Datos..." class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-bold outline-none">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-300 mb-1">Código / NRC</label>
+            <input type="text" id="subjectNrcInput" placeholder="Ej. NRC 8421" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-bold outline-none">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-300 mb-1">Docente</label>
+            <input type="text" id="subjectTeacherInput" placeholder="Ing. o Dr." class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-bold outline-none">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-300 mb-1">Color Distintivo</label>
+          <div class="flex items-center gap-2" id="subjectColorOptions">
+            <label class="cursor-pointer"><input type="radio" name="subjectColor" value="#16a34a" checked class="hidden peer"><span class="w-7 h-7 rounded-xl bg-emerald-600 block peer-checked:ring-2 peer-checked:ring-white"></span></label>
+            <label class="cursor-pointer"><input type="radio" name="subjectColor" value="#3b82f6" class="hidden peer"><span class="w-7 h-7 rounded-xl bg-blue-600 block peer-checked:ring-2 peer-checked:ring-white"></span></label>
+            <label class="cursor-pointer"><input type="radio" name="subjectColor" value="#8b5cf6" class="hidden peer"><span class="w-7 h-7 rounded-xl bg-purple-600 block peer-checked:ring-2 peer-checked:ring-white"></span></label>
+            <label class="cursor-pointer"><input type="radio" name="subjectColor" value="#e11d48" class="hidden peer"><span class="w-7 h-7 rounded-xl bg-rose-600 block peer-checked:ring-2 peer-checked:ring-white"></span></label>
+            <label class="cursor-pointer"><input type="radio" name="subjectColor" value="#eab308" class="hidden peer"><span class="w-7 h-7 rounded-xl bg-amber-500 block peer-checked:ring-2 peer-checked:ring-white"></span></label>
+          </div>
+        </div>
+
+        <div class="pt-2 flex justify-end gap-2">
+          <button type="button" onclick="closeModal('modalAddSubject')" class="px-4 py-2 font-bold text-slate-400">Cancelar</button>
+          <button type="submit" class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black shadow">Guardar Materia</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: AGREGAR APUNTE / "VA PARA EL EXAMEN" -->
+  <div id="modalAddNote" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 hidden">
+    <div class="glass-card max-w-md w-full p-6 rounded-3xl border border-slate-800 space-y-4 text-xs">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="font-extrabold text-sm text-white flex items-center gap-2">
+          <i data-lucide="edit-3" class="w-4 h-4 text-amber-400"></i>
+          <span>Registrar Nota o Pregunta Clave</span>
+        </h3>
+        <button onclick="closeModal('modalAddNote')" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+
+      <form onsubmit="saveNoteSubmit(event)" class="space-y-3.5">
+        <div>
+          <label class="block font-bold text-slate-300 mb-1">Materia Asociada *</label>
+          <select id="noteSubjectSelect" required class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-bold outline-none"></select>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-300 mb-1">Tipo de Registro Pedagógico *</label>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="flex items-center gap-2 p-2.5 rounded-xl bg-slate-900 border border-slate-700 cursor-pointer text-slate-300">
+              <input type="radio" name="noteTypeChoice" value="learned" checked class="accent-emerald-500">
+              <span class="font-bold">✍️ Lo que aprendí hoy</span>
+            </label>
+            <label class="flex items-center gap-2 p-2.5 rounded-xl bg-amber-950/40 border border-amber-500/40 cursor-pointer text-amber-300">
+              <input type="radio" name="noteTypeChoice" value="exam" class="accent-amber-500">
+              <span class="font-black">🔥 ¡Va al Examen!</span>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-300 mb-1">Título / Tema *</label>
+          <input type="text" id="noteTitleInput" required placeholder="Ej. Teorema de Green, Pregunta fija demostración..." class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-bold outline-none">
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-300 mb-1">Contenido / Observaciones del Docente</label>
+          <textarea id="noteContentInput" rows="4" required placeholder="Anota aquí las observaciones y fórmulas dadas en clase..." class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs outline-none resize-none"></textarea>
+        </div>
+
+        <div class="pt-2 flex justify-end gap-2">
+          <button type="button" onclick="closeModal('modalAddNote')" class="px-4 py-2 font-bold text-slate-400">Cancelar</button>
+          <button type="submit" class="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black shadow">+ Guardar Nota (+15 XP)</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: CAMBIO DE MASCOTA -->
+  <div id="modalChangePet" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 hidden">
+    <div class="glass-card max-w-lg w-full p-6 rounded-3xl border border-emerald-500/40 space-y-4 text-xs">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div>
+          <h3 class="font-black text-sm text-white">Elige a tu Compañero de Estudio</h3>
+          <p class="text-[11px] text-slate-400">Diseñado con 4 fases evolutivas según tus notas y hábitos.</p>
+        </div>
+        <button onclick="closeModal('modalChangePet')" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <button onclick="selectPetType('dog', 'Rex')" class="p-3 rounded-2xl bg-slate-900/90 border border-slate-800 hover:border-emerald-500 text-left transition flex items-center gap-3">
+          <span class="text-3xl select-none">🐶</span>
+          <div>
+            <span class="font-black text-white block">1. Perro Fiel</span>
+            <span class="text-[10px] text-emerald-400 font-semibold">Cachorro ➔ Lobo Alfa</span>
+          </div>
+        </button>
+
+        <button onclick="selectPetType('cat', 'Misi')" class="p-3 rounded-2xl bg-slate-900/90 border border-slate-800 hover:border-emerald-500 text-left transition flex items-center gap-3">
+          <span class="text-3xl select-none">🐱</span>
+          <div>
+            <span class="font-black text-white block">2. Gato Ágil</span>
+            <span class="text-[10px] text-emerald-400 font-semibold">Gatito ➔ Tigre Dorado</span>
+          </div>
+        </button>
+
+        <button onclick="selectPetType('fox', 'Kael')" class="p-3 rounded-2xl bg-slate-900/90 border border-slate-800 hover:border-emerald-500 text-left transition flex items-center gap-3">
+          <span class="text-3xl select-none">🦊</span>
+          <div>
+            <span class="font-black text-white block">3. Zorro Astuto</span>
+            <span class="text-[10px] text-emerald-400 font-semibold">Zorrito ➔ Kitsune Místico</span>
+          </div>
+        </button>
+
+        <button onclick="selectPetType('panda', 'Bao')" class="p-3 rounded-2xl bg-slate-900/90 border border-slate-800 hover:border-emerald-500 text-left transition flex items-center gap-3">
+          <span class="text-3xl select-none">🐼</span>
+          <div>
+            <span class="font-black text-white block">4. Panda Sabio</span>
+            <span class="text-[10px] text-emerald-400 font-semibold">Pandita ➔ Panda Alado</span>
+          </div>
+        </button>
+      </div>
+
+      <div>
+        <label class="block font-bold text-slate-300 mb-1">Nombre Personalizado de tu Mascota</label>
+        <input type="text" id="inputCustomPetName" placeholder="Ej. Rex, Kael, Luna, Rocky..." class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-bold outline-none">
+      </div>
+
+      <div class="pt-2 flex justify-end gap-2">
+        <button onclick="closeModal('modalChangePet')" class="px-4 py-2 font-bold text-slate-400">Cancelar</button>
+        <button onclick="confirmChangePet()" class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black shadow">Confirmar Mascota</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================== -->
+  <!-- MODAL: AJUSTES, CONTRASEÑA, RESPALDO & SWITCH MASCOTA          -->
+  <!-- ============================================================== -->
+  <div id="modalSettings" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 hidden">
+    <div class="glass-card max-w-lg w-full p-6 rounded-3xl border border-slate-800 space-y-4 max-h-[92vh] overflow-y-auto text-xs">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="font-extrabold text-sm text-white flex items-center gap-2">
+          <i data-lucide="settings" class="w-4 h-4 text-emerald-400"></i>
+          <span>Configuración, Seguridad & Respaldos</span>
+        </h3>
+        <button onclick="closeModal('modalSettings')" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+
+      <!-- INTERRUPTOR DE ACTIVACIÓN DE MASCOTA VIRTUAL -->
+      <div class="p-3.5 rounded-2xl bg-purple-950/40 border border-purple-500/40 flex items-center justify-between">
+        <div>
+          <span class="font-black text-purple-200 block">🐾 Módulo de Mascota Virtual</span>
+          <span class="text-[11px] text-slate-400">Activa o desactiva la gamificación según tu preferencia.</span>
+        </div>
+        <button onclick="togglePetActivationFromSettings()" id="btnTogglePetSettings" class="px-3.5 py-1.5 rounded-xl font-black text-xs transition bg-emerald-600 text-white">
+          Activada ✓
+        </button>
+      </div>
+
+      <!-- ALERTA DE ALMACENAMIENTO LOCAL -->
+      <div class="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 space-y-1">
+        <span class="font-black flex items-center gap-1.5 text-xs">
+          <span>⚠️</span>
+          <span>Aviso de Almacenamiento Seguro:</span>
+        </span>
+        <p class="text-[11px] text-amber-200/90 leading-tight">
+          Tus datos se guardan en la memoria privada de tu navegador. Descarga copias periódicas para conservarlas si borras tu historial o caché.
+        </p>
+      </div>
+
+      <!-- Formulario de Perfil -->
+      <form onsubmit="saveAppSettingsSubmit(event)" class="space-y-3">
+        <div>
+          <label class="block font-bold text-slate-300 mb-1">Nombre del Estudiante</label>
+          <input type="text" id="settingStudentName" required class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-bold outline-none">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-300 mb-1">Universidad</label>
+            <input type="text" id="settingUniName" required class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-bold outline-none">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-300 mb-1">Carrera / Campus</label>
+            <input type="text" id="settingCareerName" required class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-bold outline-none">
+          </div>
+        </div>
+
+        <div class="p-3 bg-slate-900 rounded-2xl border border-slate-800 space-y-2">
+          <label class="block font-black text-white text-xs">Contraseña Personal de Acceso</label>
+          <input type="text" id="settingUserPassword" required class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-emerald-400 font-mono font-bold outline-none">
+        </div>
+
+        <button type="submit" class="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black shadow transition">
+          Guardar Ajustes de Perfil
+        </button>
+      </form>
+
+      <!-- RESPALDOS DE SEGURIDAD Y WHATSAPP -->
+      <div class="pt-3 border-t border-slate-800 space-y-2.5">
+        <span class="font-black text-white block">Copias de Seguridad (Archivo & WhatsApp)</span>
+        <div class="grid grid-cols-2 gap-2">
+          <button onclick="downloadBackupJson()" class="p-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold flex items-center justify-center gap-1.5 shadow transition">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i>
+            <span>Descargar Copia (.json)</span>
+          </button>
+          
+          <button onclick="sendBackupViaWhatsApp()" class="p-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-black flex items-center justify-center gap-1.5 shadow transition">
+            <i data-lucide="share-2" class="w-3.5 h-3.5"></i>
+            <span>WhatsApp (0963923399)</span>
+          </button>
+        </div>
+
+        <button onclick="document.getElementById('inputRestoreJsonFile').click()" class="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold border border-slate-700 flex items-center justify-center gap-1.5">
+          <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+          <span>Restaurar Datos desde Archivo (.json)</span>
+        </button>
+        <input type="file" id="inputRestoreJsonFile" accept=".json" class="hidden" onchange="handleRestoreFileSelected(event)">
+      </div>
+
+      <!-- ZONA DE SEGURIDAD: RESETEO -->
+      <div class="pt-3 border-t border-slate-800 space-y-2">
+        <span class="font-black text-rose-500 block">Zona de Seguridad Crítica</span>
+        <button onclick="openModal('modalMasterResetConfirm')" class="w-full py-2.5 rounded-xl bg-rose-950/70 hover:bg-rose-900 text-rose-300 font-black border border-rose-800 transition">
+          🚨 BORRAR TODOS LOS DATOS / RESETEAR SISTEMA
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MODAL: CONFIRMACIÓN DE RESET TOTAL -->
+  <div id="modalMasterResetConfirm" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+    <div class="glass-card max-w-sm w-full p-6 rounded-3xl border border-rose-600 text-xs space-y-3.5 text-center">
+      <div class="text-3xl">🛑</div>
+      <h4 class="font-black text-sm text-white">Confirmar Borrado Total de Datos</h4>
+      <p class="text-slate-300 text-[11px] leading-relaxed">
+        Esta acción eliminará todas las asignaturas, notas, tareas y progreso de tu cuenta. Ingresa tu contraseña o la clave de rescate ("Admin"):
+      </p>
+
+      <input type="password" id="inputConfirmMasterKey" placeholder="Contraseña..." class="w-full px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white font-bold text-center outline-none">
+
+      <div class="pt-1 flex gap-2">
+        <button onclick="closeModal('modalMasterResetConfirm')" class="flex-1 py-2 rounded-xl bg-slate-800 font-bold text-slate-400">Cancelar</button>
+        <button onclick="executeTotalSystemReset()" class="flex-1 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black shadow">Borrar Todo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================== -->
+  <!-- MOTOR JAVASCRIPT INTEGRAL Y COMPLETO                           -->
+  <!-- ============================================================== -->
+  <script>
+    const MASTER_RESCUE_KEY = "Admin";
+    const STORAGE_KEY = "StudyMind_ESPE_State_v2";
+
+    // SVGs Anatómicos Realistas para las 4 Mascotas
+    const PET_BODY_SVGS = {
+      dog: [
+        `<svg viewBox="0 0 200 200" class="w-full h-full drop-shadow-xl"><defs><linearGradient id="furDog1" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ea580c"/><stop offset="100%" stop-color="#7c2d12"/></linearGradient></defs><path d="M45 145 C35 110, 75 95, 115 105 C135 112, 145 135, 140 165 C120 175, 65 170, 45 145 Z" fill="url(#furDog1)"/><ellipse cx="60" cy="165" rx="14" ry="9" fill="#431407"/><path d="M105 130 L110 175 Q118 178 125 175 L120 130 Z" fill="#9a3412"/><ellipse cx="120" cy="80" rx="27" ry="25" fill="url(#furDog1)"/><path d="M100 65 C90 60, 85 85, 95 98 C98 90, 102 75, 105 68 Z" fill="#431407"/><path d="M138 65 C148 60, 155 85, 145 98 C142 90, 138 75, 135 68 Z" fill="#431407"/><ellipse cx="128" cy="88" rx="12" ry="10" fill="#fed7aa"/><circle cx="128" cy="84" r="3.5" fill="#1e293b"/><circle cx="112" cy="74" r="4.5" fill="#1e293b"/><circle cx="132" cy="74" r="4" fill="#1e293b"/><circle cx="110" cy="72" r="1.5" fill="#fff"/><circle cx="130" cy="72" r="1.5" fill="#fff"/></svg>`,
+        `<svg viewBox="0 0 200 200" class="w-full h-full drop-shadow-2xl"><path d="M50 140 C45 100, 80 85, 125 95 C150 105, 155 145, 145 170 C120 180, 65 175, 50 140 Z" fill="#9a3412"/><path d="M85 105 L135 120 L130 136 L80 120 Z" fill="#16a34a"/><ellipse cx="132" cy="70" rx="26" ry="24" fill="#7c2d12"/><polygon points="112,58 116,25 130,52" fill="#431407"/><polygon points="135,52 148,26 152,58" fill="#431407"/><circle cx="126" cy="66" r="4.5" fill="#0f172a"/><circle cx="140" cy="66" r="4.5" fill="#0f172a"/></svg>`,
+        `<svg viewBox="0 0 200 200" class="w-full h-full drop-shadow-2xl"><path d="M48 135 C40 90, 80 75, 130 85 C160 95, 165 140, 150 172 C120 182, 60 178, 48 135 Z" fill="#292524"/><path d="M75 95 L145 105 L135 145 L70 125 Z" fill="#0284c7" stroke="#38bdf8" stroke-width="1.5"/><ellipse cx="138" cy="62" rx="27" ry="25" fill="#1c1917"/><ellipse cx="132" cy="58" rx="5" ry="4" fill="#38bdf8"/><ellipse cx="147" cy="58" rx="5" ry="4" fill="#38bdf8"/></svg>`,
+        `<svg viewBox="0 0 200 200" class="w-full h-full drop-shadow-2xl"><circle cx="100" cy="100" r="85" fill="none" stroke="#eab308" stroke-width="2" stroke-dasharray="6,4" opacity="0.8"/><path d="M40 100 Q10 40 50 20 Q70 60 75 95 Z" fill="#eab308" opacity="0.6"/><path d="M150 95 Q185 35 150 15 Q130 55 125 90 Z" fill="#eab308" opacity="0.6"/><path d="M46 130 C40 85, 80 70, 135 80 C165 90, 170 135, 155 170 C125 180, 60 175, 46 130 Z" fill="#064e3b"/><ellipse cx="140" cy="58" rx="27" ry="24" fill="#022c22"/><ellipse cx="134" cy="56" rx="5" ry="4" fill="#facc15"/><ellipse cx="149" cy="56" rx="5" ry="4" fill="#facc15"/></svg>`
+      ],
+      cat: [
+        `<svg viewBox="0 0 200 200" class="w-full h-full"><path d="M55 140 C50 110, 75 95, 110 105 C130 112, 138 135, 132 165 C115 174, 70 170, 55 140 Z" fill="#f97316"/><ellipse cx="118" cy="80" rx="25" ry="23" fill="#f97316"/><ellipse cx="110" cy="76" rx="4" ry="5" fill="#10b981"/><ellipse cx="128" cy="76" rx="4" ry="5" fill="#10b981"/></svg>`,
+        `<svg viewBox="0 0 200 200" class="w-full h-full"><path d="M48 135 C42 98, 75 85, 120 95 C145 105, 150 140, 140 168 C115 178, 62 174, 48 135 Z" fill="#c2410c"/><ellipse cx="126" cy="68" rx="24" ry="22" fill="#c2410c"/><circle cx="122" cy="106" r="4" fill="#facc15"/></svg>`,
+        `<svg viewBox="0 0 200 200" class="w-full h-full"><path d="M45 130 C38 88, 75 75, 128 85 C158 95, 162 140, 148 172 C118 182, 58 178, 45 130 Z" fill="#18181b"/><ellipse cx="135" cy="62" rx="25" ry="23" fill="#18181b"/><ellipse cx="126" cy="58" rx="5" ry="6" fill="#eab308"/><ellipse cx="144" cy="58" rx="5" ry="6" fill="#eab308"/></svg>`,
+        `<svg viewBox="0 0 200 200" class="w-full h-full"><circle cx="100" cy="100" r="85" fill="none" stroke="#f59e0b" stroke-width="2"/><path d="M45 130 C38 88, 75 75, 128 85 C158 95, 162 140, 148 172 C118 182, 58 178, 45 130 Z" fill="#f59e0b"/><ellipse cx="136" cy="60" rx="26" ry="24" fill="#f59e0b"/></svg>`
+      ],
+      fox: [
+        `<svg viewBox="0 0 200 200" class="w-full h-full"><path d="M55 140 C50 110, 75 95, 110 105 C130 112, 138 135, 132 165 C115 174, 70 170, 55 140 Z" fill="#ea580c"/><ellipse cx="118" cy="78" rx="25" ry="23" fill="#ea580c"/><polygon points="105,75 130,75 124,96" fill="#fff"/></svg>`,
+        `<svg viewBox="0 0 200 200" class="w-full h-full"><path d="M48 135 C42 98, 75 85, 120 95 C145 105, 150 140, 140 168 C115 178, 62 174, 48 135 Z" fill="#c2410c"/><rect x="75" y="100" width="30" height="24" rx="6" fill="#15803d"/></svg>`,
+        `<svg viewBox="0 0 200 200" class="w-full h-full"><path d="M45 130 C38 88, 75 75, 128 85 C158 95, 162 140, 148 172 C118 182, 58 178, 45 130 Z" fill="#9a3412"/><ellipse cx="124" cy="56" rx="5" ry="4" fill="#facc15"/><ellipse cx="142" cy="56" rx="5" ry="4" fill="#facc15"/></svg>`,
+        `<svg viewBox="0 0 200 200" class="w-full h-full"><circle cx="100" cy="100" r="85" fill="none" stroke="#ec4899" stroke-width="2"/><path d="M45 130 C38 88, 75 75, 128 85 C158 95, 162 140, 148 172 C118 182, 58 178, 45 130 Z" fill="#fff"/></svg>`
+      ],
+      panda: [
+        `<svg viewBox="0 0 200 200" class="w-full h-full"><path d="M50 145 C45 110, 75 95, 115 105 C135 112, 145 135, 140 165 C120 175, 70 170, 50 145 Z" fill="#f8fafc"/><ellipse cx="118" cy="75" rx="28" ry="26" fill="#f8fafc"/><circle cx="95" cy="54" r="10" fill="#0f172a"/><circle cx="140" cy="54" r="10" fill="#0f172a"/><ellipse cx="108" cy="74" rx="7" ry="9" fill="#0f172a"/><ellipse cx="128" cy="74" rx="7" ry="9" fill="#0f172a"/></svg>`,
+        `<svg viewBox="0 0 200 200" class="w-full h-full"><path d="M48 140 C42 100, 75 90, 125 100 C145 110, 150 140, 142 168 C120 178, 65 175, 48 140 Z" fill="#f8fafc"/><line x1="145" y1="35" x2="135" y2="180" stroke="#22c55e" stroke-width="5"/></svg>`,
+        `<svg viewBox="0 0 200 200" class="w-full h-full"><path d="M48 140 C42 100, 75 90, 125 100 C145 110, 150 140, 142 168 C120 178, 65 175, 48 140 Z" fill="#f8fafc"/><circle cx="105" cy="120" r="12" fill="#0f172a"/></svg>`,
+        `<svg viewBox="0 0 200 200" class="w-full h-full"><circle cx="100" cy="100" r="85" fill="none" stroke="#a855f7" stroke-width="2"/><path d="M48 140 C42 100, 75 90, 125 100 C145 110, 150 140, 142 168 C120 178, 65 175, 48 140 Z" fill="#f8fafc"/></svg>`
+      ]
+    };
+
+    const PET_STAGE_DETAILS = [
+      { phase: "Fase 1: Cachorro Novato 🐣", accessory: "🍼", nextXp: 100 },
+      { phase: "Fase 2: Guardián Aplicado 🌿", accessory: "🎒", nextXp: 300 },
+      { phase: "Fase 3: Alfa de Honor ⚡", accessory: "🛡️", nextXp: 700 },
+      { phase: "Fase 4: Compañero Celestial ESPE 👑", accessory: "👑", nextXp: 1200 }
+    ];
+
+    // Estado Global de la Aplicación
+    let appState = {
+      isLoggedIn: false,
+      userPassword: "Admin",
+      student: {
+        name: "Estudiante ESPE",
+        university: "Universidad de las Fuerzas Armadas ESPE",
+        career: "Ingeniería de Software • Sangolquí",
+        semester: "2026-S1"
+      },
+      petEnabled: true, // Interruptor opcional de la mascota
+      pet: {
+        type: "dog",
+        name: "Rex",
+        xp: 120,
+        hunger: 85,
+        happiness: 90
+      },
+      subjects: [
+        {
+          id: "sub_1",
+          name: "Cálculo Vectorial",
+          nrc: "8421",
+          teacher: "Ing. Marco Morales",
+          color: "#16a34a"
+        },
+        {
+          id: "sub_2",
+          name: "Estructuras de Datos",
+          nrc: "8422",
+          teacher: "Dra. Carmen Salazar",
+          color: "#3b82f6"
+        }
+      ],
+      // Historial Libre de Calificaciones
+      grades: [
+        {
+          id: "grd_1",
+          subjectId: "sub_1",
+          type: "Deber",
+          name: "Taller 1: Integrales Múltiples",
+          score: 18.00,
+          date: "2026-09-15"
+        },
+        {
+          id: "grd_2",
+          subjectId: "sub_1",
+          type: "Prueba",
+          name: "Lección Escrita 1",
+          score: 15.50,
+          date: "2026-09-20"
+        },
+        {
+          id: "grd_3",
+          subjectId: "sub_2",
+          type: "Laboratorio",
+          name: "Práctica 1: Listas Enlazadas Dobles",
+          score: 19.00,
+          date: "2026-09-18"
+        },
+        {
+          id: "grd_4",
+          subjectId: "sub_2",
+          type: "Examen",
+          name: "Evaluación Parcial 1",
+          score: 14.50,
+          date: "2026-09-24"
+        }
+      ],
+      tasks: [
+        {
+          id: "tsk_1",
+          title: "Laboratorio 3: Árboles Binarios AVL",
+          subjectId: "sub_2",
+          dueDate: new Date(Date.now() + 5400000).toISOString().split('T')[0], // hoy
+          dueTime: new Date(Date.now() + 5400000).toTimeString().substring(0,5), // en 1.5 horas
+          category: "laboratorio",
+          completed: false,
+          notifiedUrgent: false
+        },
+        {
+          id: "tsk_2",
+          title: "Taller Grupal: Teorema de Stokes",
+          subjectId: "sub_1",
+          dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+          dueTime: "23:59",
+          category: "deber",
+          completed: false,
+          notifiedUrgent: false
+        }
+      ],
+      notes: [
+        {
+          id: "not_1",
+          subjectId: "sub_1",
+          type: "exam",
+          title: "¡Pregunta Fija del Docente!",
+          content: "El Ing. Morales indicó que entra seguro el cálculo del flujo a través de una superficie cerrada aplicando Teorema de Gauss.",
+          date: "28/09/2026"
+        },
+        {
+          id: "not_2",
+          subjectId: "sub_2",
+          type: "learned",
+          title: "Balanceo en Árboles AVL",
+          content: "Aprendí que cuando el factor de equilibrio es +2 y el hijo izquierdo es -1 se debe aplicar una rotación doble izquierda-derecha.",
+          date: "28/09/2026"
+        }
+      ],
+      theme: "dark"
+    };
+
+    let tempPendingTaskIdToDelete = null;
+
+    function loadStateFromLocalStorage() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          appState = { ...appState, ...parsed };
+          if (parsed.student) appState.student = { ...appState.student, ...parsed.student };
+          if (parsed.pet) appState.pet = { ...appState.pet, ...parsed.pet };
+        }
+      } catch (e) {
+        console.error("Error al cargar localStorage", e);
+      }
+    }
+
+    function saveState() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+        refreshAllDashboardUI();
+      } catch (e) {
+        console.error("Error al guardar estado", e);
+      }
+    }
+
+    function showToast(message, icon = "✅") {
+      const toast = document.getElementById("toastNotification");
+      if (!toast) return;
+      document.getElementById("toastIcon").textContent = icon;
+      document.getElementById("toastMessage").textContent = message;
+      toast.classList.remove("opacity-0", "translate-y-[-20px]", "pointer-events-none");
+      toast.classList.add("opacity-100", "translate-y-0");
+      clearTimeout(window._toastTimer);
+      window._toastTimer = setTimeout(() => {
+        toast.classList.remove("opacity-100", "translate-y-0");
+        toast.classList.add("opacity-0", "translate-y-[-20px]", "pointer-events-none");
+      }, 3200);
+    }
+
+    function handleLoginSubmit(event) {
+      event.preventDefault();
+      const inputPass = document.getElementById("inputLoginPassword").value.trim();
+      const validPass = appState.userPassword || "Admin";
+
+      if (inputPass.toLowerCase() === validPass.toLowerCase() || inputPass === MASTER_RESCUE_KEY) {
+        appState.isLoggedIn = true;
+        document.getElementById("loginScreen").classList.add("hidden");
+        document.getElementById("loginErrorMsg").classList.add("hidden");
+        showToast(`¡Bienvenido/a, ${appState.student.name}!`, "🎓");
+      } else {
+        document.getElementById("loginErrorMsg").classList.remove("hidden");
+        showToast("Clave incorrecta. Clave de rescate: Admin", "❌");
+      }
+    }
+
+    function togglePasswordVisibility(inputId) {
+      const input = document.getElementById(inputId);
+      if (input) {
+        input.type = input.type === "password" ? "text" : "password";
+      }
+    }
+
+    function lockSession() {
+      appState.isLoggedIn = false;
+      document.getElementById("inputLoginPassword").value = "";
+      document.getElementById("loginScreen").classList.remove("hidden");
+      showToast("Sesión bloqueada por seguridad", "🔒");
+    }
+
+    // CÁLCULO ARITMÉTICO REAL DE PROMEDIOS (SOBRE 20)
+    function calculateSubjectStats(subjectId) {
+      const subjectGrades = (appState.grades || []).filter(g => g.subjectId === subjectId);
+      if (subjectGrades.length === 0) {
+        return { count: 0, promedio: 0, status: "Sin notas" };
+      }
+      const sum = subjectGrades.reduce((acc, g) => acc + Number(g.score || 0), 0);
+      const promedio = sum / subjectGrades.length;
+
+      let status = "En Riesgo 🔴";
+      if (promedio >= 14.00) status = "Aprobado 🟢";
+      else if (promedio >= 12.00) status = "Regular 🟡";
+
+      return {
+        count: subjectGrades.length,
+        promedio: Math.min(20, promedio),
+        status
+      };
+    }
+
+    function calculateSemesterGPA() {
+      if (!appState.subjects || appState.subjects.length === 0) return 0;
+      let totalSum = 0;
+      let subjectsWithGrades = 0;
+
+      appState.subjects.forEach(sub => {
+        const stats = calculateSubjectStats(sub.id);
+        if (stats.count > 0) {
+          totalSum += stats.promedio;
+          subjectsWithGrades++;
+        }
+      });
+
+      return subjectsWithGrades > 0 ? (totalSum / subjectsWithGrades) : 0;
+    }
+
+    // HISTORIAL DE CALIFICACIONES REALES Y CRUD
+    function renderGradesHistoryList() {
+      const tbody = document.getElementById("gradesHistoryTableBody");
+      const subFilter = document.getElementById("filterGradeSubjectSelect")?.value || "all";
+      const typeFilter = document.getElementById("filterGradeTypeSelect")?.value || "all";
+      if (!tbody) return;
+
+      tbody.innerHTML = "";
+
+      let filtered = (appState.grades || []).filter(g => {
+        if (subFilter !== "all" && g.subjectId !== subFilter) return false;
+        if (typeFilter !== "all" && g.type !== typeFilter) return false;
+        return true;
+      });
+
+      document.getElementById("historyGradesCount").textContent = filtered.length;
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-400">No hay calificaciones registradas para este filtro. ¡Agrega tu primera nota!</td></tr>`;
+        return;
+      }
+
+      // Ordenar cronológicamente descendente
+      filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      filtered.forEach(item => {
+        const sub = appState.subjects.find(s => s.id === item.subjectId) || { name: "General", color: "#16a34a" };
+        const score = Number(item.score || 0);
+
+        let badgeClass = "bg-rose-500/20 text-rose-300 border-rose-500/30";
+        let statusText = "En Riesgo 🔴";
+        if (score >= 14.00) {
+          badgeClass = "bg-emerald-500/20 text-emerald-300 border-emerald-500/30";
+          statusText = "Aprobado 🟢";
+        } else if (score >= 12.00) {
+          badgeClass = "bg-amber-500/20 text-amber-300 border-amber-500/30";
+          statusText = "Regular 🟡";
+        }
+
+        const tr = document.createElement("tr");
+        tr.className = "hover:bg-slate-900/60 transition";
+        tr.innerHTML = `
+          <td class="py-2.5 px-3 font-mono text-slate-400">${item.date}</td>
+          <td class="py-2.5 px-3 font-bold" style="color: ${sub.color}">${sub.name}</td>
+          <td class="py-2.5 px-3">
+            <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700">
+              ${item.type}
+            </span>
+          </td>
+          <td class="py-2.5 px-3 font-semibold text-white">${item.name}</td>
+          <td class="py-2.5 px-3 text-right font-mono font-black ${score >= 14 ? 'text-emerald-400' : 'text-amber-400'} text-sm">
+            ${score.toFixed(2)}
+          </td>
+          <td class="py-2.5 px-3 text-center">
+            <span class="px-2 py-0.5 rounded-md text-[10px] font-black border ${badgeClass}">
+              ${statusText}
+            </span>
+          </td>
+          <td class="py-2.5 px-3 text-center">
+            <div class="flex items-center justify-center gap-1.5">
+              <button onclick="editGrade('${item.id}')" class="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition" title="Editar calificación">
+                <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
+              </button>
+              <button onclick="deleteGrade('${item.id}')" class="p-1 rounded text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition" title="Eliminar calificación">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function updateGradeInputHelper() {
+      const score = parseFloat(document.getElementById("gradeScoreInput").value) || 0;
+      const helper = document.getElementById("gradeConversionHelper");
+      if (helper) {
+        helper.textContent = `Equivalente: ${(score / 2).toFixed(2)} / 10`;
+      }
+    }
+
+    function saveGradeSubmit(e) {
+      e.preventDefault();
+      const editId = document.getElementById("gradeEditId").value;
+      const subjectId = document.getElementById("gradeSubjectSelect").value;
+      const type = document.getElementById("gradeTypeSelect").value;
+      const date = document.getElementById("gradeDateInput").value;
+      const name = document.getElementById("gradeNameInput").value.trim();
+      const score = Math.min(20, Math.max(0, parseFloat(document.getElementById("gradeScoreInput").value) || 0));
+
+      if (editId) {
+        const item = appState.grades.find(g => g.id === editId);
+        if (item) {
+          item.subjectId = subjectId;
+          item.type = type;
+          item.date = date;
+          item.name = name;
+          item.score = score;
+        }
+        showToast("Calificación actualizada con éxito", "📝");
+      } else {
+        appState.grades.push({
+          id: "grd_" + Date.now(),
+          subjectId,
+          type,
+          date,
+          name,
+          score
+        });
+
+        // Gamificación condicional si la mascota está activa
+        if (appState.petEnabled) {
+          if (score === 20) {
+            addXpToPet(50, "Nota perfecta 20/20");
+            if (window.confetti) confetti({ particleCount: 100, spread: 80, origin: { y: 0.5 } });
+            showToast("¡PERFECTO! 20/20 en " + name + " (+50 XP) 🎉", "🏆");
+          } else if (score >= 14) {
+            addXpToPet(30, "Aprobado notable");
+            if (window.confetti) confetti({ particleCount: 40, spread: 50 });
+            showToast("¡Excelente! Nota registrada: " + score.toFixed(2) + " (+30 XP)", "✨");
+          } else {
+            addXpToPet(15, "Nota registrada");
+            showToast("Calificación guardada: " + score.toFixed(2) + " (+15 XP)", "📚");
+          }
+        } else {
+          if (score >= 14 && window.confetti) confetti({ particleCount: 40, spread: 50 });
+          showToast("Calificación registrada con éxito: " + score.toFixed(2), "✅");
+        }
+      }
+
+      saveState();
+      closeModal("modalAddGrade");
+    }
+
+    function editGrade(gradeId) {
+      const g = (appState.grades || []).find(x => x.id === gradeId);
+      if (!g) return;
+
+      document.getElementById("gradeEditId").value = g.id;
+      document.getElementById("gradeSubjectSelect").value = g.subjectId;
+      document.getElementById("gradeTypeSelect").value = g.type;
+      document.getElementById("gradeDateInput").value = g.date;
+      document.getElementById("gradeNameInput").value = g.name;
+      document.getElementById("gradeScoreInput").value = g.score;
+      updateGradeInputHelper();
+      document.getElementById("gradeModalTitle").textContent = "Editar Calificación";
+      openModal("modalAddGrade");
+    }
+
+    function deleteGrade(gradeId) {
+      appState.grades = (appState.grades || []).filter(g => g.id !== gradeId);
+      saveState();
+      showToast("Calificación eliminada del historial", "🗑️");
+    }
+
+    // SIMULADOR LIBRE DE CALIFICACIONES
+    function loadSubjectIntoSimulator() {
+      const subId = document.getElementById("simSubjectSelect").value;
+      if (subId === "custom") return;
+
+      const stats = calculateSubjectStats(subId);
+      if (stats.count > 0) {
+        document.getElementById("simCurrentAvg").value = stats.promedio.toFixed(2);
+        document.getElementById("simGradesDoneCount").value = stats.count;
+      } else {
+        document.getElementById("simCurrentAvg").value = "14.00";
+        document.getElementById("simGradesDoneCount").value = "1";
+      }
+      runGradeSimulator();
+    }
+
+    function runGradeSimulator() {
+      const curAvg = parseFloat(document.getElementById("simCurrentAvg").value) || 0;
+      const doneCount = parseInt(document.getElementById("simGradesDoneCount").value) || 1;
+      const target = parseFloat(document.getElementById("simTargetGoal").value) || 14.00;
+      const upcomingCount = parseInt(document.getElementById("simUpcomingCount").value) || 1;
+
+      const totalItems = doneCount + upcomingCount;
+      const requiredTotalSum = target * totalItems;
+      const currentSum = curAvg * doneCount;
+      const remainingSumNeeded = requiredTotalSum - currentSum;
+      const requiredPerGrade = remainingSumNeeded / upcomingCount;
+
+      const dispScore = document.getElementById("simRequiredScoreDisplay");
+      const dispBadge = document.getElementById("simRequiredBadge");
+      const adviceBox = document.getElementById("simAdviceBox");
+
+      if (!dispScore) return;
+
+      if (requiredPerGrade <= 0) {
+        dispScore.textContent = "0.00";
+        dispScore.className = "font-mono text-4xl sm:text-5xl font-black text-emerald-400 block";
+        dispBadge.className = "inline-block text-xs font-black px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
+        dispBadge.textContent = "¡Meta asegurada! 🎉";
+        adviceBox.innerHTML = `💡 <b>¡Felicidades!</b> Tu promedio actual (${curAvg.toFixed(2)}) ya es superior o igual a tu meta (${target.toFixed(2)}). Mantén tu ritmo de estudio.`;
+      } else if (requiredPerGrade > 20) {
+        dispScore.textContent = requiredPerGrade.toFixed(2);
+        dispScore.className = "font-mono text-4xl sm:text-5xl font-black text-rose-500 block";
+        dispBadge.className = "inline-block text-xs font-black px-3 py-1 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30";
+        dispBadge.textContent = "Matemáticamente Excedido (> 20.00) ⚠️";
+        adviceBox.innerHTML = `⚠️ <b>Alerta:</b> Con solo ${upcomingCount} actividades restantes, necesitarías más de 20 puntos por entrega. Considera simular más entregas o consultar con tu docente por trabajos de recuperación.`;
+      } else {
+        dispScore.textContent = requiredPerGrade.toFixed(2);
+        if (requiredPerGrade >= 16) {
+          dispScore.className = "font-mono text-4xl sm:text-5xl font-black text-amber-400 block";
+          dispBadge.className = "inline-block text-xs font-black px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30";
+          dispBadge.textContent = "Exigente pero alcanzable 🎯";
+        } else {
+          dispScore.className = "font-mono text-4xl sm:text-5xl font-black text-emerald-400 block";
+          dispBadge.className = "inline-block text-xs font-black px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
+          dispBadge.textContent = "Totalmente accesible 👍";
+        }
+        adviceBox.innerHTML = `💡 <b>Plan de Acción:</b> Para alcanzar ${target.toFixed(2)} de promedio final, necesitas promediar <b>${requiredPerGrade.toFixed(2)} / 20</b> en tus próximas ${upcomingCount} actividades.`;
+      }
+    }
+
+    // BOLETA SEMESTRAL ESTILIZADA / SÁBANA DE NOTAS
+    function openPrintableReportModal() {
+      const gpa = calculateSemesterGPA();
+      document.getElementById("printReportUniName").textContent = appState.student.university;
+      document.getElementById("printReportCareerName").textContent = appState.student.career;
+      document.getElementById("printReportStudentName").textContent = appState.student.name;
+      document.getElementById("printReportStudentSignature").textContent = appState.student.name;
+      document.getElementById("printReportGeneralGpa").textContent = `${gpa.toFixed(2)} / 20.00`;
+      document.getElementById("printReportDate").textContent = `Fecha de Emisión: ${new Date().toLocaleDateString('es-EC')}`;
+
+      const tbody = document.getElementById("printReportTableBody");
+      tbody.innerHTML = "";
+
+      if (!appState.subjects || appState.subjects.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-slate-500">No hay asignaturas registradas.</td></tr>`;
+      } else {
+        appState.subjects.forEach(sub => {
+          const stats = calculateSubjectStats(sub.id);
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td class="py-2.5 px-3 font-mono font-bold">${sub.nrc || 'N/A'}</td>
+            <td class="py-2.5 px-3 font-black text-slate-900">${sub.name}</td>
+            <td class="py-2.5 px-3 text-slate-600">${sub.teacher || 'Docente'}</td>
+            <td class="py-2.5 px-3 text-center font-mono">${stats.count}</td>
+            <td class="py-2.5 px-3 text-right font-mono font-black ${stats.promedio >= 14 ? 'text-emerald-800' : 'text-amber-800'}">${stats.promedio.toFixed(2)}</td>
+            <td class="py-2.5 px-3 text-center font-bold ${stats.promedio >= 14 ? 'text-emerald-700' : 'text-rose-700'}">${stats.status}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+
+      openModal("modalPrintableReport");
+    }
+
+    // MASCOTA VIRTUAL: ACTIVAR / DESACTIVAR & ACCIONES
+    function togglePetActivation(enable) {
+      appState.petEnabled = enable;
+      saveState();
+      showToast(enable ? "Mascota virtual activada 🐾" : "Mascota virtual desactivada", "✨");
+    }
+
+    function togglePetActivationFromSettings() {
+      togglePetActivation(!appState.petEnabled);
+    }
+
+    function getPetStageIndex(xp) {
+      if (xp >= 1200) return 3;
+      if (xp >= 700) return 2;
+      if (xp >= 300) return 1;
+      return 0;
+    }
+
+    function addXpToPet(amount, reason = "") {
+      if (!appState.petEnabled) return;
+      const oldStage = getPetStageIndex(appState.pet.xp);
+      appState.pet.xp += amount;
+      appState.pet.hunger = Math.min(100, appState.pet.hunger + Math.round(amount * 0.4));
+      appState.pet.happiness = Math.min(100, appState.pet.happiness + Math.round(amount * 0.5));
+
+      const newStage = getPetStageIndex(appState.pet.xp);
+      if (newStage > oldStage) {
+        if (window.confetti) confetti({ particleCount: 100, spread: 80, origin: { y: 0.5 } });
+        showToast(`🎉 ¡EVOLUCIÓN! ${appState.pet.name} avanzó a una nueva fase legendaria!`, "✨");
+      }
+    }
+
+    function renderPetUI() {
+      const topBtn = document.getElementById("topPetContainerBtn");
+      const dTab = document.getElementById("dNavTabPet");
+      const mTab = document.getElementById("mNavTabPet");
+      const kpiCard = document.getElementById("kpiPetCardBox");
+      const activeContainer = document.getElementById("petActiveStateContainer");
+      const disabledBanner = document.getElementById("petDisabledStateBanner");
+      const btnSettings = document.getElementById("btnTogglePetSettings");
+
+      // Actualizar Interruptor en Ajustes
+      if (btnSettings) {
+        btnSettings.className = appState.petEnabled
+          ? "px-3.5 py-1.5 rounded-xl font-black text-xs transition bg-emerald-600 text-white"
+          : "px-3.5 py-1.5 rounded-xl font-black text-xs transition bg-slate-800 text-slate-400";
+        btnSettings.textContent = appState.petEnabled ? "Activada ✓" : "Desactivada ✕";
+      }
+
+      if (!appState.petEnabled) {
+        if (topBtn) topBtn.classList.add("hidden");
+        if (dTab) dTab.classList.add("hidden");
+        if (mTab) mTab.classList.add("hidden");
+        if (kpiCard) kpiCard.classList.add("hidden");
+        if (activeContainer) activeContainer.classList.add("hidden");
+        if (disabledBanner) disabledBanner.classList.remove("hidden");
+        return;
+      }
+
+      // Si está habilitada
+      if (topBtn) topBtn.classList.remove("hidden");
+      if (dTab) dTab.classList.remove("hidden");
+      if (mTab) mTab.classList.remove("hidden");
+      if (kpiCard) kpiCard.classList.remove("hidden");
+      if (activeContainer) activeContainer.classList.remove("hidden");
+      if (disabledBanner) disabledBanner.classList.add("hidden");
+
+      const pet = appState.pet;
+      const stageIdx = getPetStageIndex(pet.xp);
+      const stageInfo = PET_STAGE_DETAILS[stageIdx];
+      const svgs = PET_BODY_SVGS[pet.type] || PET_BODY_SVGS.dog;
+      const icons = { dog: "🐶", cat: "🐱", fox: "🦊", panda: "🐼" };
+
+      const topIcon = document.getElementById("topPetIcon");
+      if (topIcon) topIcon.textContent = icons[pet.type] || "🐾";
+      const topName = document.getElementById("topPetName");
+      if (topName) topName.textContent = pet.name;
+      const topXp = document.getElementById("topPetXp");
+      if (topXp) topXp.textContent = `${pet.xp} XP`;
+
+      const dispName = document.getElementById("petDisplayName");
+      if (dispName) dispName.textContent = pet.name;
+      const dispXp = document.getElementById("petTotalXpDisplay");
+      if (dispXp) dispXp.textContent = `${pet.xp} XP`;
+      const badgePhase = document.getElementById("petPhaseNameBadge");
+      if (badgePhase) badgePhase.textContent = stageInfo.phase;
+      const badgeAccessory = document.getElementById("petAccessoryBadge");
+      if (badgeAccessory) badgeAccessory.textContent = stageInfo.accessory;
+
+      const svgContainer = document.getElementById("petSvgContainer");
+      if (svgContainer) svgContainer.innerHTML = svgs[stageIdx];
+
+      const xpRatio = document.getElementById("petXpRatioText");
+      if (xpRatio) xpRatio.textContent = `${pet.xp} / ${stageInfo.nextXp} XP`;
+      const fillBar = document.getElementById("petXpBarFill");
+      if (fillBar) {
+        const pct = Math.min(100, Math.round((pet.xp / stageInfo.nextXp) * 100));
+        fillBar.style.width = `${pct}%`;
+      }
+
+      const hFill = document.getElementById("petHungerFill");
+      if (hFill) hFill.style.width = `${pet.hunger}%`;
+      const hapFill = document.getElementById("petHappinessFill");
+      if (hapFill) hapFill.style.width = `${pet.happiness}%`;
+
+      const kpiName = document.getElementById("kpiPetNameLabel");
+      if (kpiName) kpiName.textContent = pet.name;
+      const kpiStage = document.getElementById("kpiPetStageBadge");
+      if (kpiStage) kpiStage.textContent = `Fase ${stageIdx + 1}`;
+      const kpiIcon = document.getElementById("kpiPetIconBox");
+      if (kpiIcon) kpiIcon.textContent = icons[pet.type];
+      const kpiXp = document.getElementById("kpiPetXpText");
+      if (kpiXp) kpiXp.textContent = `${pet.xp} XP acumulados`;
+    }
+
+    function feedPet() {
+      appState.pet.hunger = Math.min(100, appState.pet.hunger + 15);
+      addXpToPet(5, "Alimentar mascota");
+      saveState();
+      showToast(`🍎 ${appState.pet.name} está bien nutrido (+5 XP)`);
+    }
+
+    function petMascot() {
+      appState.pet.happiness = Math.min(100, appState.pet.happiness + 15);
+      addXpToPet(5, "Acariciar mascota");
+      saveState();
+      showToast(`💖 ${appState.pet.name} está feliz (+5 XP)`);
+    }
+
+    let tempSelectedPetType = "dog";
+    function selectPetType(type, defaultName) {
+      tempSelectedPetType = type;
+      document.getElementById("inputCustomPetName").value = defaultName;
+    }
+
+    function confirmChangePet() {
+      const customName = document.getElementById("inputCustomPetName").value.trim() || "Compañero";
+      appState.pet.type = tempSelectedPetType;
+      appState.pet.name = customName;
+      saveState();
+      closeModal("modalChangePet");
+      showToast(`¡Ahora tu compañero es ${customName}! 🐾`, "✨");
+    }
+
+    // GESTIÓN DE TAREAS Y PREVENCIÓN DE BORRADO ACCIDENTAL
+    function checkUrgentDeadlines() {
+      const now = new Date();
+      let urgentFound = 0;
+
+      (appState.tasks || []).forEach(task => {
+        if (!task.completed && task.dueDate && task.dueTime) {
+          const taskDeadline = new Date(`${task.dueDate}T${task.dueTime}:00`);
+          const diffMs = taskDeadline - now;
+          const diffHours = diffMs / (1000 * 60 * 60);
+
+          if (diffHours > 0 && diffHours <= 2) {
+            urgentFound++;
+            if (!task.notifiedUrgent) {
+              task.notifiedUrgent = true;
+              showToast(`⏰ ¡ALERTA ESPE! La actividad "${task.title}" vence en menos de 2 horas.`, "⚠️");
+            }
+          }
+        }
+      });
+
+      const warningBadge = document.getElementById("kpiUrgentWarning");
+      if (warningBadge) {
+        if (urgentFound > 0) {
+          warningBadge.classList.remove("hidden");
+          warningBadge.textContent = `⚠️ ${urgentFound} urgentes (< 2h)`;
+        } else {
+          warningBadge.classList.add("hidden");
+        }
+      }
+    }
+
+    let taskFilterStatus = "pending";
+    function filterTasksList(status) {
+      taskFilterStatus = status;
+      const bPend = document.getElementById("btnFilterTaskPending");
+      const bComp = document.getElementById("btnFilterTaskCompleted");
+      if (bPend && bComp) {
+        if (status === "pending") {
+          bPend.className = "px-3.5 py-1.5 rounded-xl font-bold text-xs bg-emerald-600 text-white";
+          bComp.className = "px-3.5 py-1.5 rounded-xl font-bold text-xs bg-slate-800 text-slate-400 hover:text-white";
+        } else {
+          bPend.className = "px-3.5 py-1.5 rounded-xl font-bold text-xs bg-slate-800 text-slate-400 hover:text-white";
+          bComp.className = "px-3.5 py-1.5 rounded-xl font-bold text-xs bg-emerald-600 text-white";
+        }
+      }
+      renderTasksListFull();
+    }
+
+    function renderTasksListFull() {
+      const container = document.getElementById("tasksListFullContainer");
+      if (!container) return;
+      container.innerHTML = "";
+
+      const filtered = (appState.tasks || []).filter(t => taskFilterStatus === "pending" ? !t.completed : t.completed);
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="col-span-full p-8 text-center text-slate-400 glass-card rounded-3xl border border-dashed border-slate-800">
+            <span>🎉</span>
+            <h4 class="font-bold text-white mt-1">No hay actividades ${taskFilterStatus === "pending" ? "pendientes" : "completadas"}.</h4>
+            <p class="text-xs text-slate-400 mt-0.5">Mantente al día con tus entregas académicas de la ESPE.</p>
+          </div>
+        `;
+        return;
+      }
+
+      const now = new Date();
+
+      filtered.forEach(task => {
+        const subject = appState.subjects.find(s => s.id === task.subjectId) || { name: "General", color: "#16a34a" };
+        const deadline = new Date(`${task.dueDate}T${task.dueTime}:00`);
+        const diffMs = deadline - now;
+        const diffHours = diffMs / (1000 * 60 * 60);
+        const isUrgent = !task.completed && diffHours > 0 && diffHours <= 2;
+        const isOverdue = !task.completed && diffHours <= 0;
+
+        const card = document.createElement("div");
+        card.className = `glass-card p-4 rounded-3xl border ${isUrgent ? 'border-rose-500/80 alert-urgent-pulse bg-rose-950/20' : 'border-slate-800'} flex flex-col justify-between space-y-3`;
+        card.innerHTML = `
+          <div class="flex items-start justify-between gap-2">
+            <div>
+              <span class="text-[10px] font-black uppercase px-2 py-0.5 rounded-md" style="background:${subject.color}25; color:${subject.color}; border:1px solid ${subject.color}50">
+                ${subject.name}
+              </span>
+              <h4 class="font-extrabold text-sm text-white mt-1.5 ${task.completed ? 'line-through text-slate-400' : ''}">${task.title}</h4>
+              <div class="flex items-center gap-2 mt-1 text-[11px] text-slate-400">
+                <span>📅 ${task.dueDate} • ${task.dueTime}</span>
+                ${isUrgent ? `<span class="text-rose-400 font-black animate-pulse">⏰ ¡Vence en menos de 2h!</span>` : ''}
+                ${isOverdue ? `<span class="text-rose-500 font-bold">⛔ Plazo vencido</span>` : ''}
+              </div>
+            </div>
+
+            <button onclick="requestDeleteTaskSafely('${task.id}')" class="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition" title="Eliminar actividad">
+              <i data-lucide="trash-2" class="w-4 h-4"></i>
+            </button>
+          </div>
+
+          <div class="flex items-center justify-between pt-2 border-t border-slate-800">
+            <span class="text-[10px] font-bold uppercase text-slate-400">Tipo: ${task.category}</span>
+            ${!task.completed ? `
+              <button onclick="markTaskAsCompleted('${task.id}')" class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow flex items-center gap-1 transition active:scale-95">
+                <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                <span>Completar (+25 XP)</span>
+              </button>
+            ` : `
+              <span class="text-xs font-bold text-emerald-400 flex items-center gap-1">
+                <i data-lucide="check-check" class="w-3.5 h-3.5"></i>
+                <span>Completada</span>
+              </span>
+            `}
+          </div>
+        `;
+        container.appendChild(card);
+      });
+
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function requestDeleteTaskSafely(taskId) {
+      const task = appState.tasks.find(t => t.id === taskId);
+      if (!task) return;
+
+      if (!task.completed) {
+        tempPendingTaskIdToDelete = taskId;
+        document.getElementById("deleteTaskTitleDisplay").textContent = `"${task.title}"`;
+        document.getElementById("modalConfirmDeleteTask").classList.remove("hidden");
+      } else {
+        appState.tasks = appState.tasks.filter(t => t.id !== taskId);
+        saveState();
+        showToast("Actividad eliminada", "🗑️");
+      }
+    }
+
+    function confirmTaskAsCompletedFromModal() {
+      if (tempPendingTaskIdToDelete) {
+        markTaskAsCompleted(tempPendingTaskIdToDelete);
+        closeModal("modalConfirmDeleteTask");
+        tempPendingTaskIdToDelete = null;
+      }
+    }
+
+    function forceDeletePendingTask() {
+      if (tempPendingTaskIdToDelete) {
+        appState.tasks = appState.tasks.filter(t => t.id !== tempPendingTaskIdToDelete);
+        tempPendingTaskIdToDelete = null;
+        closeModal("modalConfirmDeleteTask");
+        saveState();
+        showToast("Actividad eliminada sin completar", "🗑️");
+      }
+    }
+
+    function markTaskAsCompleted(taskId) {
+      const task = appState.tasks.find(t => t.id === taskId);
+      if (!task) return;
+      task.completed = true;
+      if (appState.petEnabled) addXpToPet(25, `Entrega: ${task.title}`);
+      if (window.confetti) confetti({ particleCount: 50, spread: 60 });
+      saveState();
+      showToast(`¡Excelente! "${task.title}" completada (+25 XP)`, "🎉");
+    }
+
+    // MINI AGENDA CALENDARIO MENSUAL
+    function renderMonthlyCalendar() {
+      const grid = document.getElementById("monthlyCalendarGrid");
+      const label = document.getElementById("currentMonthYearLabel");
+      if (!grid) return;
+
+      const now = new Date();
+      const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+      if (label) label.textContent = `${monthNames[now.getMonth()]} ${now.getFullYear()}`;
+
+      grid.innerHTML = "";
+      const daysOfWeek = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+      daysOfWeek.forEach(d => {
+        grid.innerHTML += `<div class="font-black text-slate-500 py-1 text-[10px]">${d}</div>`;
+      });
+
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      const firstDay = new Date(year, month, 1).getDay();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+      // Días vacíos anteriores
+      for (let i = 0; i < firstDay; i++) {
+        grid.innerHTML += `<div class="p-2 text-slate-700"></div>`;
+      }
+
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const hasTasks = (appState.tasks || []).some(t => t.dueDate === dateStr && !t.completed);
+        const hasGrades = (appState.grades || []).some(g => g.date === dateStr);
+        const isToday = d === now.getDate();
+
+        let badge = "";
+        if (hasTasks) badge = `<span class="w-1.5 h-1.5 rounded-full bg-rose-500 mx-auto block mt-0.5"></span>`;
+        else if (hasGrades) badge = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mx-auto block mt-0.5"></span>`;
+
+        grid.innerHTML += `
+          <div class="p-1.5 rounded-xl ${isToday ? 'bg-emerald-600 text-white font-black' : 'bg-slate-900 text-slate-300'} border border-slate-800 text-[11px]">
+            <span>${d}</span>
+            ${badge}
+          </div>
+        `;
+      }
+    }
+
+    // APUNTES PEDAGÓGICOS: "LO QUE APRENDÍ HOY" & "VA AL EXAMEN"
+    function renderNotesLists() {
+      const filterSub = document.getElementById("selectNotesFilterSubject")?.value || "all";
+      const contLearned = document.getElementById("notesLearnedTodayContainer");
+      const contExam = document.getElementById("notesExamAlertsContainer");
+      if (!contLearned || !contExam) return;
+
+      contLearned.innerHTML = "";
+      contExam.innerHTML = "";
+
+      const notes = (appState.notes || []).filter(n => filterSub === "all" || n.subjectId === filterSub);
+      const learnedNotes = notes.filter(n => n.type === "learned");
+      const examNotes = notes.filter(n => n.type === "exam");
+
+      if (learnedNotes.length === 0) {
+        contLearned.innerHTML = `<p class="text-slate-400 text-xs text-center py-4">No hay reflexiones registradas para esta materia.</p>`;
+      } else {
+        learnedNotes.forEach(note => {
+          const sub = appState.subjects.find(s => s.id === note.subjectId) || { name: "General", color: "#16a34a" };
+          const div = document.createElement("div");
+          div.className = "p-3.5 bg-slate-900 rounded-2xl border border-slate-800 space-y-1.5 relative group";
+          div.innerHTML = `
+            <div class="flex justify-between items-center">
+              <span class="text-[10px] font-black uppercase px-2 py-0.5 rounded-md" style="background:${sub.color}25; color:${sub.color}">${sub.name}</span>
+              <span class="text-[10px] text-slate-500">${note.date}</span>
+            </div>
+            <h5 class="font-extrabold text-white text-xs">${note.title}</h5>
+            <p class="text-slate-300 text-xs leading-relaxed">${note.content}</p>
+            <button onclick="deleteNote('${note.id}')" class="absolute top-2 right-2 text-slate-500 hover:text-rose-400 p-1"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+          `;
+          contLearned.appendChild(div);
+        });
+      }
+
+      if (examNotes.length === 0) {
+        contExam.innerHTML = `<p class="text-amber-300/60 text-xs text-center py-4">No hay tips de examen anotados todavía.</p>`;
+      } else {
+        examNotes.forEach(note => {
+          const sub = appState.subjects.find(s => s.id === note.subjectId) || { name: "General", color: "#eab308" };
+          const div = document.createElement("div");
+          div.className = "p-3.5 bg-amber-950/40 rounded-2xl border border-amber-500/40 space-y-1.5 relative";
+          div.innerHTML = `
+            <div class="flex justify-between items-center">
+              <span class="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/40">${sub.name}</span>
+              <span class="text-[10px] text-amber-400 font-bold">${note.date}</span>
+            </div>
+            <h5 class="font-black text-amber-200 text-xs flex items-center gap-1.5">
+              <span>🔥</span>
+              <span>${note.title}</span>
+            </h5>
+            <p class="text-amber-100 text-xs leading-relaxed font-medium">${note.content}</p>
+            <button onclick="deleteNote('${note.id}')" class="absolute top-2 right-2 text-amber-400/60 hover:text-rose-400 p-1"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+          `;
+          contExam.appendChild(div);
+        });
+      }
+
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function deleteNote(noteId) {
+      appState.notes = appState.notes.filter(n => n.id !== noteId);
+      saveState();
+      showToast("Nota eliminada", "🗑️");
+    }
+
+    // COPIAS DE SEGURIDAD Y WHATSAPP (+593963923399)
+    function downloadBackupJson() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appState, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `StudyMind_ESPE_Respaldo_${new Date().toISOString().split('T')[0]}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      showToast("Copia de seguridad descargada en tu dispositivo", "📥");
+    }
+
+    function sendBackupViaWhatsApp() {
+      downloadBackupJson();
+      const gpa = calculateSemesterGPA();
+      const pendingCount = (appState.tasks || []).filter(t => !t.completed).length;
+      const gradesCount = (appState.grades || []).length;
+      const summaryMsg = `*COPIA DE SEGURIDAD - STUDYMIND ESPE*\nEstudiante: ${appState.student.name}\nUniversidad: ${appState.student.university}\nPromedio General Real: ${gpa.toFixed(2)} / 20\nCalificaciones Registradas: ${gradesCount}\nEntregas Pendientes: ${pendingCount}\nFecha: ${new Date().toLocaleDateString('es-EC')}\n(El archivo .json fue descargado en el dispositivo para custodia)`;
+
+      const waUrl = `https://wa.me/593963923399?text=${encodeURIComponent(summaryMsg)}`;
+      window.open(waUrl, '_blank');
+      showToast("WhatsApp abierto para enviar respaldo", "📲");
+    }
+
+    function handleRestoreFileSelected(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const imported = JSON.parse(e.target.result);
+          if (imported && (imported.subjects || imported.student || imported.grades)) {
+            appState = { ...appState, ...imported };
+            saveState();
+            closeModal("modalSettings");
+            if (window.confetti) confetti({ particleCount: 70, spread: 60 });
+            showToast("¡Datos restaurados con éxito desde la copia!", "🎉");
+          } else {
+            showToast("El archivo no tiene el formato de StudyMind", "❌");
+          }
+        } catch (err) {
+          showToast("Error al leer el archivo JSON", "❌");
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function executeTotalSystemReset() {
+      const inputKey = document.getElementById("inputConfirmMasterKey").value.trim();
+      const validKey = appState.userPassword || "Admin";
+
+      if (inputKey.toLowerCase() === validKey.toLowerCase() || inputKey === MASTER_RESCUE_KEY) {
+        appState.subjects = [];
+        appState.grades = [];
+        appState.tasks = [];
+        appState.notes = [];
+        appState.pet.xp = 0;
+        appState.isLoggedIn = true;
+        saveState();
+        closeModal("modalMasterResetConfirm");
+        closeModal("modalSettings");
+        showToast("Todos los datos fueron borrados. Sistema en cero.", "🚨");
+      } else {
+        showToast("Contraseña maestra incorrecta", "❌");
+      }
+    }
+
+    // ACTUALIZACIÓN INTEGRAL DE LA INTERFAZ
+    function refreshAllDashboardUI() {
+      const headerTitle = document.getElementById("navUniTitle");
+      if (headerTitle) headerTitle.textContent = appState.student.university.includes("ESPE") ? "ESPE" : appState.student.university;
+      const careerSub = document.getElementById("navCareerSubtitle");
+      if (careerSub) careerSub.textContent = appState.student.career;
+      const studentGreet = document.getElementById("dashStudentNameDisplay");
+      if (studentGreet) studentGreet.textContent = appState.student.name;
+
+      const pendingTasks = (appState.tasks || []).filter(t => !t.completed);
+      const kpiPend = document.getElementById("kpiPendingCount");
+      if (kpiPend) kpiPend.textContent = pendingTasks.length;
+
+      const gpa = calculateSemesterGPA();
+      const topGpa = document.getElementById("topSemesterGpa");
+      if (topGpa) topGpa.textContent = `${gpa.toFixed(2)} / 20`;
+      const kpiGpa = document.getElementById("kpiGpaNumber");
+      if (kpiGpa) kpiGpa.textContent = gpa.toFixed(2);
+      const kpiGrades = document.getElementById("kpiTotalGradesRecorded");
+      if (kpiGrades) kpiGrades.textContent = (appState.grades || []).length;
+
+      const examTips = (appState.notes || []).filter(n => n.type === "exam");
+      const kpiTips = document.getElementById("kpiExamTipsCount");
+      if (kpiTips) kpiTips.textContent = examTips.length;
+
+      renderDashboardUrgentTasks();
+      renderDashboardExamHighlights();
+      renderDashboardSubjectsGrid();
+      populateDropdowns();
+      renderGradesHistoryList();
+      renderTasksListFull();
+      renderMonthlyCalendar();
+      renderNotesLists();
+      renderPetUI();
+      checkUrgentDeadlines();
+      updateGpaChart();
+      runGradeSimulator();
+    }
+
+    function renderDashboardUrgentTasks() {
+      const container = document.getElementById("dashUrgentTasksContainer");
+      if (!container) return;
+      container.innerHTML = "";
+
+      const pending = (appState.tasks || []).filter(t => !t.completed).slice(0, 3);
+      if (pending.length === 0) {
+        container.innerHTML = `<p class="text-slate-400 text-xs py-3 text-center">¡Estás al día! No tienes actividades pendientes.</p>`;
+        return;
+      }
+
+      const now = new Date();
+      pending.forEach(task => {
+        const sub = appState.subjects.find(s => s.id === task.subjectId) || { name: "Materia", color: "#16a34a" };
+        const deadline = new Date(`${task.dueDate}T${task.dueTime}:00`);
+        const diffMs = deadline - now;
+        const diffHours = diffMs / (1000 * 60 * 60);
+        const isUrgent = diffHours > 0 && diffHours <= 2;
+
+        const div = document.createElement("div");
+        div.className = `p-3 rounded-2xl border ${isUrgent ? 'bg-rose-950/40 border-rose-500/60 alert-urgent-pulse' : 'bg-slate-900 border-slate-800'} flex items-center justify-between gap-3 text-xs`;
+        div.innerHTML = `
+          <div class="truncate">
+            <span class="text-[9px] font-black uppercase px-2 py-0.5 rounded" style="background:${sub.color}25; color:${sub.color}">${sub.name}</span>
+            <h5 class="font-extrabold text-white mt-1 truncate">${task.title}</h5>
+            <span class="text-[10px] text-slate-400">📅 ${task.dueDate} a las ${task.dueTime}</span>
+          </div>
+          <button onclick="markTaskAsCompleted('${task.id}')" class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[11px] shrink-0">
+            ✓ Hecha
+          </button>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    function renderDashboardExamHighlights() {
+      const container = document.getElementById("dashExamHighlightsContainer");
+      if (!container) return;
+      container.innerHTML = "";
+
+      const highlights = (appState.notes || []).filter(n => n.type === "exam").slice(0, 3);
+      if (highlights.length === 0) {
+        container.innerHTML = `<p class="text-amber-300/60 text-xs py-3 text-center">Aún no has registrado tips "Va para el examen".</p>`;
+        return;
+      }
+
+      highlights.forEach(h => {
+        const sub = appState.subjects.find(s => s.id === h.subjectId) || { name: "Materia", color: "#eab308" };
+        const div = document.createElement("div");
+        div.className = "p-3 rounded-2xl bg-amber-950/30 border border-amber-500/30 text-xs space-y-1";
+        div.innerHTML = `
+          <div class="flex justify-between items-center">
+            <span class="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300">${sub.name}</span>
+            <span class="text-[10px] text-amber-400/80">${h.date}</span>
+          </div>
+          <h5 class="font-black text-amber-200">${h.title}</h5>
+          <p class="text-[11px] text-amber-100/90 leading-tight">${h.content}</p>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    function renderDashboardSubjectsGrid() {
+      const container = document.getElementById("dashSubjectsGrid");
+      if (!container) return;
+      container.innerHTML = "";
+
+      if (!appState.subjects || appState.subjects.length === 0) {
+        container.innerHTML = `<p class="text-slate-400 text-xs col-span-full py-4 text-center">No hay asignaturas creadas en el semestre.</p>`;
+        return;
+      }
+
+      appState.subjects.forEach(sub => {
+        const stats = calculateSubjectStats(sub.id);
+        const card = document.createElement("div");
+        card.className = "p-3.5 bg-slate-900 rounded-2xl border border-slate-800 space-y-2 text-xs hover:border-slate-700 transition cursor-pointer";
+        card.onclick = () => {
+          switchTab('tabGradesHistory');
+          const sel = document.getElementById("filterGradeSubjectSelect");
+          if (sel) { sel.value = sub.id; renderGradesHistoryList(); }
+        };
+        card.innerHTML = `
+          <div class="flex items-start justify-between">
+            <div class="truncate">
+              <span class="text-[9px] font-black uppercase text-slate-400">${sub.nrc || 'NRC ESPE'}</span>
+              <h5 class="font-black text-white text-sm truncate" style="color:${sub.color}">${sub.name}</h5>
+              <span class="text-[10px] text-slate-400">${sub.teacher || 'Docente'}</span>
+            </div>
+            <div class="text-right">
+              <span class="font-mono text-base font-black ${stats.promedio >= 14 ? 'text-emerald-400' : 'text-amber-400'}">${stats.promedio.toFixed(2)}</span>
+              <span class="text-[9px] text-slate-400 block">${stats.count} notas</span>
+            </div>
+          </div>
+          <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+            <div class="h-full rounded-full" style="background:${sub.color}; width:${(stats.promedio / 20) * 100}%"></div>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function populateDropdowns() {
+      // 1. Selector de Materias en Notas
+      const gradeSubSel = document.getElementById("gradeSubjectSelect");
+      if (gradeSubSel) {
+        gradeSubSel.innerHTML = "";
+        appState.subjects.forEach(s => {
+          const opt = document.createElement("option");
+          opt.value = s.id;
+          opt.textContent = `${s.name} (${s.nrc || 'NRC'})`;
+          gradeSubSel.appendChild(opt);
+        });
+      }
+
+      // 2. Filtro de Materias en Historial
+      const filterGradeSubSel = document.getElementById("filterGradeSubjectSelect");
+      if (filterGradeSubSel) {
+        const cur = filterGradeSubSel.value;
+        filterGradeSubSel.innerHTML = `<option value="all">Todas las Asignaturas</option>`;
+        appState.subjects.forEach(s => {
+          const opt = document.createElement("option");
+          opt.value = s.id;
+          opt.textContent = s.name;
+          filterGradeSubSel.appendChild(opt);
+        });
+        if (cur) filterGradeSubSel.value = cur;
+      }
+
+      // 3. Selector en Simulador
+      const simSubSel = document.getElementById("simSubjectSelect");
+      if (simSubSel) {
+        const cur = simSubSel.value;
+        simSubSel.innerHTML = `<option value="custom">-- Ingreso Manual Libre --</option>`;
+        appState.subjects.forEach(s => {
+          const opt = document.createElement("option");
+          opt.value = s.id;
+          opt.textContent = `${s.name} (${calculateSubjectStats(s.id).promedio.toFixed(2)})`;
+          simSubSel.appendChild(opt);
+        });
+        if (cur) simSubSel.value = cur;
+      }
+
+      // 4. Selector en Tareas
+      const taskSubSel = document.getElementById("taskSubjectSelect");
+      if (taskSubSel) {
+        taskSubSel.innerHTML = "";
+        appState.subjects.forEach(s => {
+          const opt = document.createElement("option");
+          opt.value = s.id;
+          opt.textContent = s.name;
+          taskSubSel.appendChild(opt);
+        });
+      }
+
+      // 5. Selector en Apuntes
+      const noteSubSel = document.getElementById("noteSubjectSelect");
+      if (noteSubSel) {
+        noteSubSel.innerHTML = "";
+        appState.subjects.forEach(s => {
+          const opt = document.createElement("option");
+          opt.value = s.id;
+          opt.textContent = s.name;
+          noteSubSel.appendChild(opt);
+        });
+      }
+
+      // 6. Filtro en Apuntes
+      const filterSubSel = document.getElementById("selectNotesFilterSubject");
+      if (filterSubSel) {
+        const cur = filterSubSel.value;
+        filterSubSel.innerHTML = `<option value="all">Todas las Materias</option>`;
+        appState.subjects.forEach(s => {
+          const opt = document.createElement("option");
+          opt.value = s.id;
+          opt.textContent = s.name;
+          filterSubSel.appendChild(opt);
+        });
+        if (cur) filterSubSel.value = cur;
+      }
+    }
+
+    function saveSubjectSubmit(e) {
+      e.preventDefault();
+      const name = document.getElementById("subjectNameInput").value.trim();
+      const nrc = document.getElementById("subjectNrcInput").value.trim();
+      const teacher = document.getElementById("subjectTeacherInput").value.trim();
+      const color = document.querySelector('input[name="subjectColor"]:checked')?.value || "#16a34a";
+
+      const newSubject = {
+        id: "sub_" + Date.now(),
+        name,
+        nrc,
+        teacher,
+        color
+      };
+
+      appState.subjects.push(newSubject);
+      saveState();
+      closeModal("modalAddSubject");
+      showToast(`Materia "${name}" registrada en el semestre`, "📚");
+    }
+
+    function saveTaskSubmit(e) {
+      e.preventDefault();
+      const editId = document.getElementById("taskEditId").value;
+      const title = document.getElementById("taskNameInput").value.trim();
+      const subjectId = document.getElementById("taskSubjectSelect").value;
+      const dueDate = document.getElementById("taskDateInput").value;
+      const dueTime = document.getElementById("taskTimeInput").value;
+      const category = document.getElementById("taskCategorySelect").value;
+
+      if (editId) {
+        const t = appState.tasks.find(x => x.id === editId);
+        if (t) {
+          t.title = title;
+          t.subjectId = subjectId;
+          t.dueDate = dueDate;
+          t.dueTime = dueTime;
+          t.category = category;
+        }
+        showToast("Actividad actualizada", "✅");
+      } else {
+        appState.tasks.push({
+          id: "tsk_" + Date.now(),
+          title,
+          subjectId,
+          dueDate,
+          dueTime,
+          category,
+          completed: false,
+          notifiedUrgent: false
+        });
+        showToast("Entrega registrada con alerta de 2 horas", "⏰");
+      }
+
+      saveState();
+      closeModal("modalAddTask");
+    }
+
+    function saveNoteSubmit(e) {
+      e.preventDefault();
+      const subjectId = document.getElementById("noteSubjectSelect").value;
+      const type = document.querySelector('input[name="noteTypeChoice"]:checked').value;
+      const title = document.getElementById("noteTitleInput").value.trim();
+      const content = document.getElementById("noteContentInput").value.trim();
+
+      appState.notes.unshift({
+        id: "not_" + Date.now(),
+        subjectId,
+        type,
+        title,
+        content,
+        date: new Date().toLocaleDateString('es-EC')
+      });
+
+      if (appState.petEnabled) addXpToPet(15, "Apunte pedagógico");
+      saveState();
+      closeModal("modalAddNote");
+      showToast(type === "exam" ? "¡Tip de examen destacado!" : "Nota diaria guardada (+15 XP)", "✍️");
+    }
+
+    function saveAppSettingsSubmit(e) {
+      e.preventDefault();
+      appState.student.name = document.getElementById("settingStudentName").value.trim();
+      appState.student.university = document.getElementById("settingUniName").value.trim();
+      appState.student.career = document.getElementById("settingCareerName").value.trim();
+      const newPass = document.getElementById("settingUserPassword").value.trim();
+      if (newPass) appState.userPassword = newPass;
+
+      saveState();
+      closeModal("modalSettings");
+      showToast("Configuración de perfil actualizada", "⚙️");
+    }
+
+    function switchTab(tabId) {
+      document.querySelectorAll(".main-tab-content").forEach(el => el.classList.add("hidden"));
+      const target = document.getElementById(tabId);
+      if (target) target.classList.remove("hidden");
+
+      // Actualizar Desktop Buttons
+      const tabMap = {
+        tabDashboard: "dNavTabDashboard",
+        tabGradesHistory: "dNavTabGradesHistory",
+        tabSimulator: "dNavTabSimulator",
+        tabPonderaciones: "dNavTabPonderaciones",
+        tabTasks: "dNavTabTasks",
+        tabNotes: "dNavTabNotes",
+        tabPet: "dNavTabPet"
+      };
+
+      Object.keys(tabMap).forEach(key => {
+        const btn = document.getElementById(tabMap[key]);
+        if (btn) {
+          if (key === tabId) {
+            btn.className = "desktop-nav-btn px-3 py-1.5 rounded-xl font-bold bg-emerald-600 text-white flex items-center gap-1.5 transition";
+          } else {
+            btn.className = "desktop-nav-btn px-3 py-1.5 rounded-xl font-bold text-slate-400 hover:text-white hover:bg-slate-800 flex items-center gap-1.5 transition";
+          }
+        }
+      });
+
+      // Actualizar Mobile Nav
+      const mobileMap = {
+        tabDashboard: "mNavTabDashboard",
+        tabGradesHistory: "mNavTabGradesHistory",
+        tabSimulator: "mNavTabSimulator",
+        tabPonderaciones: "mNavTabPonderaciones",
+        tabTasks: "mNavTabTasks",
+        tabNotes: "mNavTabNotes",
+        tabPet: "mNavTabPet"
+      };
+
+      Object.keys(mobileMap).forEach(key => {
+        const mBtn = document.getElementById(mobileMap[key]);
+        if (mBtn) {
+          if (key === tabId) {
+            mBtn.className = "mobile-nav-btn flex-1 flex flex-col items-center gap-0.5 text-emerald-400";
+          } else {
+            mBtn.className = "mobile-nav-btn flex-1 flex flex-col items-center gap-0.5 text-slate-400";
+          }
+        }
+      });
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function openModal(modalId) {
+      const el = document.getElementById(modalId);
+      if (el) el.classList.remove("hidden");
+
+      if (modalId === "modalSettings") {
+        document.getElementById("settingStudentName").value = appState.student.name;
+        document.getElementById("settingUniName").value = appState.student.university;
+        document.getElementById("settingCareerName").value = appState.student.career;
+        document.getElementById("settingUserPassword").value = appState.userPassword || "Admin";
+      } else if (modalId === "modalAddTask") {
+        document.getElementById("taskEditId").value = "";
+        document.getElementById("taskNameInput").value = "";
+        document.getElementById("taskDateInput").value = new Date().toISOString().split('T')[0];
+        document.getElementById("taskTimeInput").value = "23:59";
+      } else if (modalId === "modalAddGrade") {
+        document.getElementById("gradeEditId").value = "";
+        document.getElementById("gradeNameInput").value = "";
+        document.getElementById("gradeDateInput").value = new Date().toISOString().split('T')[0];
+        document.getElementById("gradeScoreInput").value = "";
+        document.getElementById("gradeModalTitle").textContent = "Registrar Nota Obtenida";
+        updateGradeInputHelper();
+      }
+    }
+
+    function closeModal(modalId) {
+      const el = document.getElementById(modalId);
+      if (el) el.classList.add("hidden");
+    }
+
+    function toggleTheme() {
+      const html = document.documentElement;
+      const isDark = html.classList.contains("dark");
+      if (isDark) {
+        html.classList.remove("dark");
+        appState.theme = "light";
+        document.getElementById("themeSunIcon").classList.remove("hidden");
+        document.getElementById("themeMoonIcon").classList.add("hidden");
+      } else {
+        html.classList.add("dark");
+        appState.theme = "dark";
+        document.getElementById("themeSunIcon").classList.add("hidden");
+        document.getElementById("themeMoonIcon").classList.remove("hidden");
+      }
+      saveState();
+    }
+
+    // GRÁFICOS Y AMBIENTE 3D
+    let gpaChartInstance = null;
+    function updateGpaChart() {
+      if (!window.Chart) return;
+      const ctx = document.getElementById("chartGpaOverview")?.getContext("2d");
+      if (!ctx) return;
+
+      const labels = (appState.subjects || []).map(s => s.name);
+      const dataValues = (appState.subjects || []).map(s => calculateSubjectStats(s.id).promedio);
+      const colors = (appState.subjects || []).map(s => s.color);
+
+      if (gpaChartInstance) gpaChartInstance.destroy();
+
+      gpaChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: labels.length ? labels : ["Sin asignaturas"],
+          datasets: [{
+            data: dataValues.some(v => v > 0) ? dataValues : [20],
+            backgroundColor: colors.length ? colors : ['#16a34a'],
+            borderWidth: 2,
+            borderColor: '#0f172a'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          cutout: '70%'
+        }
+      });
+    }
+
+    function initThreeBackground() {
+      const canvas = document.getElementById("bg3dCanvas");
+      if (!canvas || !window.THREE) return;
+
+      try {
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+
+        const particleCount = 80;
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(particleCount * 3);
+
+        for (let i = 0; i < particleCount * 3; i++) {
+          positions[i] = (Math.random() - 0.5) * 16;
+        }
+
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        const material = new THREE.PointsMaterial({
+          size: 0.05,
+          color: 0x16a34a,
+          transparent: true,
+          opacity: 0.35
+        });
+
+        const particles = new THREE.Points(geometry, material);
+        scene.add(particles);
+        camera.position.z = 5;
+
+        function animate() {
+          requestAnimationFrame(animate);
+          particles.rotation.y += 0.0006;
+          particles.rotation.x += 0.0003;
+          renderer.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+          camera.aspect = window.innerWidth / window.innerHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+      } catch (err) {
+        console.warn("WebGL no soportado", err);
+      }
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      loadStateFromLocalStorage();
+      initThreeBackground();
+
+      if (appState.theme === "light") {
+        document.documentElement.classList.remove("dark");
+        document.getElementById("themeSunIcon").classList.remove("hidden");
+        document.getElementById("themeMoonIcon").classList.add("hidden");
+      }
+
+      refreshAllDashboardUI();
+      setInterval(checkUrgentDeadlines, 30000);
+
+      if (window.lucide) lucide.createIcons();
+    });
+  </script>
+</body>
+</html>
